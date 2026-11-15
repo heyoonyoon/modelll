@@ -24,13 +24,13 @@ function issuesFor(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
   return issues;
 }
 
-function useIssues(): Issue[] {
+export function useIssues(): Issue[] {
   const nodes = useNodes();
   const edges = useEdges();
   return useMemo(() => issuesFor(nodes, edges), [nodes, edges]);
 }
 
-function countIssues(issues: Issue[]): { errors: number; warnings: number } {
+export function countIssues(issues: Issue[]): { errors: number; warnings: number } {
   let errors = 0;
   for (const issue of issues) if (issue.severity === 'error') errors++;
   return { errors, warnings: issues.length - errors };
@@ -59,7 +59,7 @@ export function elementCenter(id: string, nodes: ErdNode[], edges: ErdEdge[]): P
   return present ? nodeCenter(present) : null;
 }
 
-function ErrorIcon() {
+export function ErrorIcon() {
   return (
     <svg className="issues-icon issues-icon-error" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
       <circle cx="8" cy="8" r="7" fill="currentColor" />
@@ -69,7 +69,7 @@ function ErrorIcon() {
   );
 }
 
-function WarningIcon() {
+export function WarningIcon() {
   return (
     <svg className="issues-icon issues-icon-warning" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
       <path d="M8 1.6 15 14H1L8 1.6Z" fill="currentColor" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -79,7 +79,7 @@ function WarningIcon() {
   );
 }
 
-function OkIcon() {
+export function OkIcon() {
   return (
     <svg className="issues-icon issues-icon-ok" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
       <circle cx="8" cy="8" r="7" fill="currentColor" />
@@ -96,7 +96,34 @@ function CloseIcon() {
   );
 }
 
-export function IssuesPanel() {
+/**
+ * 문제의 요소로 화면을 옮기고 잠깐 강조한다. select가 false면 선택은 바꾸지 않는다(다이어그램 정보 패널이 닫히지 않게)
+ */
+export function focusIssueElements(
+  issue: Issue,
+  nodes: ErdNode[],
+  edges: ErdEdge[],
+  timer: { current: ReturnType<typeof setTimeout> | null },
+  select = true,
+): void {
+  if (select) ui().setSelection(issue.elementIds);
+  ui().setHighlight(issue.elementIds);
+  for (const id of issue.elementIds) {
+    const center = elementCenter(id, nodes, edges);
+    if (center) {
+      centerOn(center);
+      break;
+    }
+  }
+  if (timer.current !== null) clearTimeout(timer.current);
+  timer.current = setTimeout(() => {
+    timer.current = null;
+    ui().setHighlight([]);
+  }, HIGHLIGHT_MS);
+}
+
+/** 검증 결과 본문(요약, 목록). 검증 패널과 다이어그램 정보 패널이 같이 쓴다 */
+export function IssuesContent() {
   const t = useT();
   const nodes = useNodes();
   const edges = useEdges();
@@ -119,22 +146,53 @@ export function IssuesPanel() {
 
   const focusIssue = (issue: Issue) => {
     setActiveId(issue.id);
-    ui().setSelection(issue.elementIds);
-    ui().setHighlight(issue.elementIds);
-    for (const id of issue.elementIds) {
-      const center = elementCenter(id, nodes, edges);
-      if (center) {
-        centerOn(center);
-        break;
-      }
-    }
-    if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      ui().setHighlight([]);
-    }, HIGHLIGHT_MS);
+    focusIssueElements(issue, nodes, edges, timer);
   };
 
+  if (issues.length === 0) {
+    return (
+      <p className="issues-empty" data-testid="issues-empty">
+        <OkIcon />
+        <span>{t('issues.empty')}</span>
+      </p>
+    );
+  }
+  return (
+    <>
+      <div className="issues-summary" data-testid="issues-summary">
+        <span className={`issues-count${errors > 0 ? ' is-error' : ''}`} data-testid="issues-error-count">
+          <ErrorIcon />
+          {t('count.errors', { count: errors })}
+        </span>
+        <span className={`issues-count${warnings > 0 ? ' is-warning' : ''}`} data-testid="issues-warning-count">
+          <WarningIcon />
+          {t('count.warnings', { count: warnings })}
+        </span>
+      </div>
+      <ul className="issues-list">
+        {issues.map((issue) => (
+          <li key={issue.id}>
+            <button
+              type="button"
+              className={`issues-item${issue.id === activeId ? ' is-active' : ''}`}
+              data-testid="issue-item"
+              data-issue-id={issue.id}
+              data-severity={issue.severity}
+              onClick={() => focusIssue(issue)}
+            >
+              {issue.severity === 'error' ? <ErrorIcon /> : <WarningIcon />}
+              <span className="sr-only">{issue.severity === 'error' ? t('common.error') : t('common.warning')}</span>
+              <span className="issues-message">{tSentence(issue.message)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+export function IssuesPanel() {
+  const t = useT();
   return (
     <section className="panel issues-panel" data-testid="issues-panel" aria-label={t('issues.title')}>
       <header className="issues-header">
@@ -150,44 +208,7 @@ export function IssuesPanel() {
           <CloseIcon />
         </button>
       </header>
-
-      {issues.length === 0 ? (
-        <p className="issues-empty" data-testid="issues-empty">
-          <OkIcon />
-          <span>{t('issues.empty')}</span>
-        </p>
-      ) : (
-        <>
-          <div className="issues-summary" data-testid="issues-summary">
-            <span className={`issues-count${errors > 0 ? ' is-error' : ''}`} data-testid="issues-error-count">
-              <ErrorIcon />
-              {t('count.errors', { count: errors })}
-            </span>
-            <span className={`issues-count${warnings > 0 ? ' is-warning' : ''}`} data-testid="issues-warning-count">
-              <WarningIcon />
-              {t('count.warnings', { count: warnings })}
-            </span>
-          </div>
-          <ul className="issues-list">
-            {issues.map((issue) => (
-              <li key={issue.id}>
-                <button
-                  type="button"
-                  className={`issues-item${issue.id === activeId ? ' is-active' : ''}`}
-                  data-testid="issue-item"
-                  data-issue-id={issue.id}
-                  data-severity={issue.severity}
-                  onClick={() => focusIssue(issue)}
-                >
-                  {issue.severity === 'error' ? <ErrorIcon /> : <WarningIcon />}
-                  <span className="sr-only">{issue.severity === 'error' ? t('common.error') : t('common.warning')}</span>
-                  <span className="issues-message">{tSentence(issue.message)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <IssuesContent />
     </section>
   );
 }

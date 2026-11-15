@@ -289,6 +289,72 @@ describe('modelll CLI', () => {
     expect(noRoom.err[0]).toContain('does not exist');
   });
 
+  it('ie는 IE 그림을 글이나 JSON으로 내고, ie push는 JSON 문서로 통째로 바꾼다', async () => {
+    await boot();
+    const url = (await run(['new', 'model.mdl'], { 'model.mdl': MODEL })).out[0];
+    const empty = await run(['ie', url]);
+    expect(empty.code).toBe(0);
+    expect(empty.err).toEqual([`${url} has no tables yet (people draw them in the app, or use "modelll ie push")`]);
+
+    const diagram = {
+      dialect: 'mysql',
+      tables: [
+        { name: 'Dept', x: 0, y: 0, columns: [{ name: 'id', pk: true, type: 'INT' }, { name: 'name', type: 'VARCHAR(50)', unique: true }] },
+        { name: 'Emp', columns: [{ name: 'id', pk: true, type: 'INT' }, { name: 'dept_id', notNull: false }] },
+        { name: 'Log', columns: [{ name: 'msg' }] },
+      ],
+      relationships: [{ child: 'Emp', columns: ['dept_id'], parent: 'Dept' }],
+    };
+    const pushed = await run(['ie', 'push', url, 'ie.json'], { 'ie.json': JSON.stringify(diagram) });
+    expect(pushed.code).toBe(0);
+    expect(pushed.out).toEqual([`Updated the IE diagram of ${url} (3 tables, 5 columns, 1 relationship)`, 'warning: table "Log" has no primary key']);
+
+    const shown = await run(['ie', url]);
+    expect(shown.out[0].split('\n')).toEqual([
+      'Dept  (at 0, 0)',
+      '  PK    id  INT NOT NULL',
+      '        name  VARCHAR(50) UNIQUE',
+      'Emp',
+      '  PK    id  INT NOT NULL',
+      '  FK    dept_id  (INT) NULL',
+      'Log',
+      '        msg  -',
+      '',
+      'Relationships (child -> parent):',
+      '  Emp (dept_id) -> Dept (id)  non-identifying 1:N',
+      '',
+      'DBMS: mysql',
+    ]);
+    const json = await run(['ie', url, '--json']);
+    const doc = JSON.parse(json.out.join('\n'));
+    expect(doc).toMatchObject({ dialect: 'mysql', relationships: [{ child: 'Emp', parentColumns: ['id'], identifying: false, cardinality: '1:N' }] });
+
+    // 받은 JSON을 그대로 다시 보내면 바뀌지 않는다(표준 입력으로도 받는다)
+    const again = await run(['ie', 'push', url, 'out.json', '--json'], { 'out.json': json.out.join('\n') });
+    expect(JSON.parse(again.out.join('\n'))).toMatchObject({ ok: true, changed: false, tables: 3, url });
+
+    // relational도 같은 글을 본다
+    expect((await run(['relational', url])).out[0]).toContain('Foreign Key (dept_id) references Dept (id)');
+  });
+
+  it('ie push는 틀린 문서를 보내지 않고 문제를 모두 알린다', async () => {
+    await boot();
+    const url = (await run(['new', 'model.mdl'], { 'model.mdl': MODEL })).out[0];
+    const notJson = await run(['ie', 'push', url, 'x.json'], { 'x.json': '{ tables: [' });
+    expect(notJson.code).toBe(1);
+    expect(notJson.err[0]).toMatch(/^x\.json: error: not valid JSON/);
+    const bad = await run(['ie', 'push', url, 'x.json'], { 'x.json': JSON.stringify({ tables: [{ name: 'T', columns: [{ name: 'id', pk: true, notNull: false, type: "a'" }] }] }) });
+    expect(bad.code).toBe(1);
+    expect(bad.err).toEqual([
+      expect.stringMatching(/^x\.json: error: tables\[0\]\.columns\[0\]\.type: /),
+      expect.stringMatching(/^x\.json: error: tables\[0\]\.columns\[0\]\.notNull: a primary-key column cannot be NULL/),
+    ]);
+    expect((await run(['ie', url])).err[0]).toContain('has no tables yet');
+    const noRoom = await run(['ie', 'push', 'nobody1234', 'x.json'], { 'x.json': '{"tables": []}' });
+    expect(noRoom.code).toBe(1);
+    expect(noRoom.err[0]).toContain('does not exist');
+  });
+
   it('잘못 적은 명령은 2로 끝난다', async () => {
     for (const argv of [
       ['pulll'],
@@ -302,6 +368,10 @@ describe('modelll CLI', () => {
       ['relational', 'abc123', 'x.txt'],
       ['relational', 'pull', 'abc123', 'x.txt'],
       ['relational', 'push', 'abc123', 'x.txt', 'y'],
+      ['ie'],
+      ['ie', 'abc123', 'x.json'],
+      ['ie', 'pull', 'abc123', 'x.json'],
+      ['ie', 'abc123', '--dialect', 'mysql'],
     ]) {
       const result = await run(argv);
       expect(result.code, argv.join(' ')).toBe(2);
@@ -315,7 +385,7 @@ describe('modelll CLI', () => {
       const help = await run(argv);
       expect(help.code).toBe(0);
       const text = help.out.join('\n');
-      for (const word of ['modelll new', 'modelll pull', 'modelll push', 'modelll validate', 'modelll syntax', 'modelll relational', 'modelll relational push', 'modelll sql', '--dialect', '--server', '--json', '--lang', 'MODELLL_SERVER']) {
+      for (const word of ['modelll new', 'modelll pull', 'modelll push', 'modelll validate', 'modelll syntax', 'modelll relational', 'modelll relational push', 'modelll sql', 'modelll ie', 'modelll ie push', '--dialect', '--server', '--json', '--lang', 'MODELLL_SERVER']) {
         expect(text, word).toContain(word);
       }
       // MCP는 CLI가 아니라 서버의 /mcp로 쓴다. 도움말은 그 주소만 알려 준다

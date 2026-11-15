@@ -70,7 +70,7 @@ const underlined = (page: Page) => page.locator('.rel-editor-marks .rel-ul');
 test('관계 모델을 적으면 IE와 SQL이 따라오고, 팀원의 화면에도 바로 나타난다', async ({ browser }) => {
   const a = await join(browser, 'e2e-panes-a', '철수', '#E5484D');
   const page = a.page;
-  // 기본 배치는 관계 모델, SQL, IE가 한 그룹의 탭이다. 여기서는 글과 IE를 함께 보려고 오른쪽을 위아래로 나눈 배치로 시작한다
+  // 기본 배치는 IE, 관계 모델, SQL이 한 그룹의 탭이다. 여기서는 글과 IE를 함께 보려고 오른쪽을 위아래로 나눈 배치로 시작한다
   await page.addInitScript(() => {
     localStorage.setItem(
       'modelll.layout',
@@ -225,6 +225,11 @@ test('관계 모델을 적으면 IE와 SQL이 따라오고, 팀원의 화면에�
   const b = await join(browser, 'e2e-panes-b', '영희', '#0090FF');
   await b.page.goto(page.url());
   await expect(b.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+  // 영희는 기본 배치다: ERD 옆 한 그룹에 IE, 관계 모델, SQL 탭이 있고 IE가 보인다
+  await expect(b.page.locator('[role="tab"][data-tab]')).toHaveCount(4);
+  await expect(b.page.locator('.dock-content > [data-pane="ie"]')).toBeVisible();
+  await expect(b.page.locator('.dock-content > [data-pane="relational"]')).toBeHidden();
+  await b.page.locator('[role="tab"][data-tab="relational"]').click();
   const editorB = b.page.getByTestId('relational-editor');
   await expect(editorB).toHaveValue(MODEL.join('\n'));
   // 4. 영희의 화면에도 같은 밑줄이 보인다

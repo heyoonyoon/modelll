@@ -10,7 +10,7 @@
  */
 import * as Y from 'yjs';
 import type { DiagramChange } from './model/types';
-import type { ErdEdge, ErdNode, Side } from './types';
+import { isAnchor, type ErdEdge, type ErdNode } from './types';
 
 export type YElementMap = Y.Map<Y.Map<unknown>>;
 
@@ -48,14 +48,11 @@ export function readEdge(m: Y.Map<unknown>): ErdEdge {
     label: String(o.label ?? ''),
     role: String(o.role ?? ''),
   };
-  if (isSide(o.sourceSide)) edge.sourceSide = o.sourceSide;
-  if (isSide(o.targetSide)) edge.targetSide = o.targetSide;
+  // 모르는 값은 자동(없음)으로 읽는다
+  if (isAnchor(o.sourceSide)) edge.sourceSide = o.sourceSide;
+  if (isAnchor(o.targetSide)) edge.targetSide = o.targetSide;
   if (o.shape === 'straight' || o.shape === 'elbow') edge.shape = o.shape;
   return edge;
-}
-
-function isSide(v: unknown): v is Side {
-  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
 }
 
 export function getNodes(doc: Y.Doc): ErdNode[] {

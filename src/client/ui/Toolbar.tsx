@@ -14,12 +14,8 @@ export interface ToolDef {
   tool: Tool;
   /** 이름의 사전 키 */
   label: MessageKey;
-  /** 영어 이름(수업 용어). 영어 화면에서는 이름과 겹치므로 보여 주지 않는다 */
-  labelEn: string;
   /** 단축키 표시(조합이면 여러 개). 없으면 빈 배열 */
   keys: string[];
-  /** 툴팁에 보이는 한 줄 설명의 사전 키 */
-  description: MessageKey;
   /** 더블클릭으로 잠글 수 있는 도구인지(도형 놓기, 연결) */
   lockable: boolean;
   icon: ReactNode;
@@ -85,9 +81,7 @@ function presetTool(id: PresetId): ToolDef {
   return {
     tool: placeTool(id),
     label: `preset.${id}.label`,
-    labelEn: preset.labelEn,
     keys: key ? [key] : [],
-    description: `preset.${id}.desc`,
     lockable: true,
     icon: <PresetIcon presetId={id} size={26} />,
   };
@@ -112,18 +106,14 @@ export const TOOL_GROUPS: ToolDef[][] = [
     {
       tool: 'select',
       label: 'tool.select.label',
-      labelEn: 'Select',
       keys: ['V'],
-      description: 'tool.select.desc',
       lockable: false,
       icon: <SelectIcon />,
     },
     {
       tool: 'pan',
       label: 'tool.pan.label',
-      labelEn: 'Hand',
       keys: ['H'],
-      description: 'tool.pan.desc',
       lockable: false,
       icon: <HandIcon />,
     },
@@ -133,18 +123,14 @@ export const TOOL_GROUPS: ToolDef[][] = [
     {
       tool: 'connect',
       label: 'tool.connect.label',
-      labelEn: 'Line',
       keys: ['L'],
-      description: 'tool.connect.desc',
       lockable: true,
       icon: <LineIcon />,
     },
     {
       tool: 'connect-double',
       label: 'tool.connect-double.label',
-      labelEn: 'Double line',
       keys: ['Shift', 'L'],
-      description: 'tool.connect-double.desc',
       lockable: true,
       icon: <DoubleLineIcon />,
     },
@@ -278,7 +264,7 @@ function LockMark() {
   );
 }
 
-/** 버튼 오른쪽에 뜨는 설명. 팔레트가 스크롤 영역이라 잘리지 않도록 body에 그린다. */
+/** 버튼 오른쪽에 뜨는 이름과 단축키(설명 문장은 두지 않는다). 팔레트가 스크롤 영역이라 잘리지 않도록 body에 그린다. */
 function ToolTip({ tip, locked }: { tip: TipState; locked: boolean }) {
   const t = useT();
   const locale = useLocale();
@@ -310,13 +296,6 @@ function ToolTip({ tip, locked }: { tip: TipState; locked: boolean }) {
           </span>
         )}
       </div>
-      {locale !== 'en' && <div className="toolbar-tip-en">{def.labelEn}</div>}
-      <div className="toolbar-tip-desc">{t(def.description)}</div>
-      {def.lockable && (
-        <div className="toolbar-tip-hint">
-          {locked ? t('toolbar.lockHint.locked') : t('toolbar.lockHint.unlocked')}
-        </div>
-      )}
     </div>,
     document.body,
   );

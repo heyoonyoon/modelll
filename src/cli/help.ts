@@ -32,6 +32,19 @@ Usage:
       Print CREATE TABLE statements converted from the room's relational model (default dialect: postgresql).
       Types, NOT NULL and UNIQUE come from settings made in the app; types are never guessed.
       A column without a type gets the placeholder /* 타입 미지정 */ and a warning on stderr.
+  modelll ie <room> [--json]
+      Print the room's IE (crow's-foot) diagram: tables, columns (PK, FK, type, NULL/NOT NULL, UNIQUE),
+      relationships and fixed table positions. --json prints it as a JSON document you can edit and push:
+        { "dialect": "postgresql",
+          "tables": [ { "name": "Dept", "x": 0, "y": 0, "columns": [ { "name": "id", "pk": true, "type": "INT" } ] },
+                      { "name": "Emp", "columns": [ { "name": "id", "pk": true }, { "name": "dept_id", "notNull": false } ] } ],
+          "relationships": [ { "child": "Emp", "columns": ["dept_id"], "parent": "Dept", "parentColumns": ["id"] } ] }
+      box, fk, inheritedType, identifying and cardinality in the output are read-only (identifying and 1:1 follow
+      from pk and unique on the foreign-key columns). Leave out x and y for automatic placement.
+  modelll ie push <room> <file|->
+      Replace the room's whole IE diagram with the JSON document: the relational model text, column types,
+      NOT NULL, UNIQUE, table positions and (when given) the dialect, in one live update. Tables and columns
+      left out are removed. Checked first; nothing is sent or saved on an error.
   modelll help | --help        Show this help.
   modelll --version            Show the version.
 
@@ -42,7 +55,7 @@ ${DEFAULT_SERVER}/mcp to the client (or <your server>/mcp when self-hosting).
 
 Options:
   --server <url>   Server for bare room ids and "new". Default: $MODELLL_SERVER, then ${DEFAULT_SERVER}.
-  --json           Print the result of new, push, relational push and validate as JSON.
+  --json           Print the result of new, push, relational push, ie, ie push and validate as JSON.
   --lang <ko|en>   Language of validation messages. Default: $MODELLL_LANG, then $LANG (Korean if it starts with "ko").
 
 Exit status: 0 on success, 1 on failure (syntax error, validation error, network or server error), 2 on wrong usage.

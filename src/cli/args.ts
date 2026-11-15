@@ -4,7 +4,7 @@
 import { parseArgs } from 'node:util';
 import { CliError } from './errors';
 
-export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'relational' | 'sql' | 'help' | 'version';
+export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'relational' | 'sql' | 'ie' | 'help' | 'version';
 
 export interface CliOptions {
   /** --server: 방 id만 적었을 때와 new에서 쓸 서버 */
@@ -48,6 +48,7 @@ export const COMMANDS: Record<Exclude<CommandName, 'help' | 'version'>, CommandS
   syntax: { min: 0, max: 0, usage: 'modelll syntax', options: [] },
   relational: { min: 1, max: 3, usage: 'modelll relational <room> | modelll relational push <room> <file|->', options: ['server'] },
   sql: { min: 1, max: 1, usage: 'modelll sql <room> [--dialect postgresql|mysql|oracle]', options: ['server', 'dialect'] },
+  ie: { min: 1, max: 3, usage: 'modelll ie <room> [--json] | modelll ie push <room> <file|->', options: ['server'] },
 };
 
 export const SQL_DIALECT_NAMES = ['postgresql', 'mysql', 'oracle'] as const;

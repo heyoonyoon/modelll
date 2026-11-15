@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-import { applyPlanToSource, applyRelationalEdit, checkNewName, planRenameColumn, planRenameTable, planSetKeys, planTogglePrimaryKey, type RelEditPlan } from './edit';
+import { applyPlanToSource, applyRelationalEdit, checkNewName, planRenameColumn, planRenameTable, type RelEditPlan } from './edit';
+import { planSetKeys, planTogglePrimaryKey } from './keys';
 import { deriveIe } from './ie';
 import { fromMarkup, toMarkup } from './markup';
 import { columnKey } from './settings';
@@ -86,9 +87,12 @@ describe('IE에서 고친 것을 글에 되써 넣기', () => {
     expect(planRenameColumn(src, '학생', '이름', '학과코드')).toEqual({ ok: false, error: 'duplicate' });
     expect(planRenameTable(src, '학생', '학과')).toEqual({ ok: false, error: 'duplicate' });
     expect(planRenameColumn(src, '학생', '없음', 'x')).toEqual({ ok: false, error: 'not-found' });
-    expect(planRenameColumn(fromMarkup(`${MODEL}\n교수 (_번호_`), '학생', '이름', 'x')).toEqual({ ok: false, error: 'text-errors' });
-    // 기본키 켜고 끄기는 밑줄만 바꾸므로 다른 곳의 오류와 상관없이 그 낱말이 제자리에 있으면 된다
-    expect(planTogglePrimaryKey(fromMarkup(`${MODEL}\n교수 (_번호_`), '학생', '이름').ok).toBe(true);
+    // 글의 다른 곳에 오류가 있어도 고친다(그 오류는 그대로 남는다)
+    const broken = fromMarkup(`${MODEL}\n교수 (_번호_`);
+    const renamed = applyPlanToSource(broken, ok(planRenameColumn(broken, '학생', '이름', 'x')));
+    expect(toMarkup(renamed).split('\n')[1]).toBe('학생 (_학번_, x, 학과코드)');
+    expect(parseRelational(renamed).problems.filter((p) => p.severity === 'error').map((p) => p.message.key)).toEqual(['rel.syntax.unclosedParen']);
+    expect(planTogglePrimaryKey(broken, '학생', '이름').ok).toBe(true);
     // 대소문자만 바꾸는 것은 된다
     expect(planRenameTable(src, '학생', '학생').ok).toBe(true);
     expect(checkNewName(' a  b ')).toEqual({ ok: true, name: 'a b' });
@@ -167,10 +171,8 @@ describe('키 고르기(없음, PK, FK, PK+FK)', () => {
     const src = fromMarkup(MODEL);
     expect(planSetKeys(src, '수강', '과목', { primaryKey: false, foreignKey: true, ref: { table: '없음', column: null } })).toEqual({ ok: false, error: 'not-found' });
     expect(planSetKeys(src, '수강', '과목', { primaryKey: false, foreignKey: true })).toEqual({ ok: false, error: 'not-found' });
-    expect(planSetKeys(fromMarkup(`${MODEL}\n교수 (_번호_`), '수강', '과목', { primaryKey: false, foreignKey: true, ref: { table: '학과', column: null } })).toEqual({
-      ok: false,
-      error: 'text-errors',
-    });
+    // 다른 곳의 오류와 상관없이 고친다
+    expect(planSetKeys(fromMarkup(`${MODEL}\n교수 (_번호_`), '수강', '과목', { primaryKey: false, foreignKey: true, ref: { table: '학과', column: null } }).ok).toBe(true);
     // 기본키가 아닌 컬럼을 가리키면 글에 오류가 생기므로 막는다
     expect(planSetKeys(src, '수강', '과목', { primaryKey: false, foreignKey: true, ref: { table: '학과', column: '학과명' } }).ok).toBe(false);
     // 바뀌는 것이 없으면 아무것도 하지 않는다

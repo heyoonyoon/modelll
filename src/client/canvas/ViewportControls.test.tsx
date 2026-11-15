@@ -255,26 +255,17 @@ describe('ZoomControls', () => {
     expect(ui().viewport).toEqual({ x: 500, y: 300, zoom: 1 });
   });
 
-  it('격자, 정렬 붙기, 미니맵 토글', () => {
+  it('격자, 정렬 붙기, 미니맵은 줌 바가 아니라 다이어그램 정보 패널에서 켜고 끈다', () => {
     render(withRoom(<ZoomControls />, nodes));
-    const grid = screen.getByRole('button', { name: '격자' });
-    expect(grid.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(grid);
-    expect(ui().showGrid).toBe(false);
-    expect(grid.getAttribute('aria-pressed')).toBe('false');
-    expect(grid.getAttribute('title')).toBe('격자 켜기');
-
-    fireEvent.click(screen.getByRole('button', { name: '정렬 붙기' }));
-    expect(ui().snapEnabled).toBe(false);
-
-    fireEvent.click(screen.getByRole('button', { name: '미니맵' }));
-    expect(ui().panels.minimap).toBe(false);
+    expect(screen.queryByTestId('toggle-grid')).toBeNull();
+    expect(screen.queryByTestId('toggle-snap')).toBeNull();
+    expect(screen.queryByTestId('toggle-minimap')).toBeNull();
   });
 
   it('모든 버튼에 title과 aria-label이 있다', () => {
     render(withRoom(<ZoomControls />, nodes));
     const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBe(7);
+    expect(buttons.length).toBe(4);
     for (const b of buttons) {
       expect(b.getAttribute('title')).toBeTruthy();
       expect(b.getAttribute('aria-label')).toBeTruthy();
@@ -318,22 +309,22 @@ describe('Minimap', () => {
     const view = screen.getByTestId('minimap-view');
     expect(Number(view.getAttribute('width'))).toBeGreaterThan(0);
     // 보이는 영역(1000×600)이 다이어그램보다 크므로 가로를 꽉 채운다
-    expect(Number(view.getAttribute('width'))).toBeCloseTo(184, 6);
+    expect(Number(view.getAttribute('width'))).toBeCloseTo(100, 6);
   });
 
   it('클릭한 위치가 화면 가운데가 된다', () => {
     ui().setViewport({ x: 0, y: 0, zoom: 1 });
     const { container } = render(withRoom(<Minimap />, nodes, edges));
     const svg = container.querySelector('svg')!;
-    // 처음 배치: 범위 (0,0)-(1000,600), 배율 0.184, 가운데 정렬 → 미니맵 (100, 70)은 월드 (500, 300)
-    // 미니맵 (8, 70)은 월드 (0, 300)
-    fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: 8, clientY: 70 });
+    // 처음 배치: 범위 (0,0)-(1000,600), 배율 0.1, 가운데 정렬 → 미니맵 (56, 39)는 월드 (500, 300)
+    // 미니맵 (6, 39)는 월드 (0, 300)
+    fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: 6, clientY: 39 });
     const c = screenToWorld(ui().viewport, { x: 500, y: 300 });
     expect(c.x).toBeCloseTo(0, 6);
     expect(c.y).toBeCloseTo(300, 6);
 
     // 끄는 동안에는 축척이 고정되어 같은 미니맵 위치는 같은 월드 위치다
-    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 100, clientY: 70 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 56, clientY: 39 });
     const c2 = screenToWorld(ui().viewport, { x: 500, y: 300 });
     expect(c2.x).toBeCloseTo(500, 6);
     expect(c2.y).toBeCloseTo(300, 6);

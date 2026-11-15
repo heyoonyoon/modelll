@@ -9,6 +9,10 @@
  *                                 밑줄(기본키)은 일반 텍스트 교환 표기 _이름_ 으로 바꿔 준다(toMarkup)
  *   PUT /api/rooms/:id/relational 관계 모델 글(_이름_ 표기)을 받아 방의 글과 밑줄을 바꾼다(fromMarkup → setRelationalSource).
  *                                 있는 방만 된다. 문법이나 내용 오류가 있으면 쓰지 않는다(400 syntax, 위치는 받은 글 기준)
+ *   GET /api/rooms/:id/ie         (추가) IE 그림 문서(JSON, ieDocument.ts의 IeDocument): 테이블, 컬럼(기본키, 타입, NOT NULL, UNIQUE), 관계, 상자 자리, DBMS.
+ *                                 읽기 전용 값(box, fk, inheritedType, identifying, cardinality)과 글의 문제(problems)가 붙는다
+ *   PUT /api/rooms/:id/ie         (추가) IE 그림 문서(JSON)를 받아 방의 관계 모델 글, 컬럼 설정, 상자 자리(와 dialect를 주면 DBMS)를 통째로 바꾼다.
+ *                                 있는 방만 된다. 모두 검사한 뒤 한 트랜잭션으로 쓴다(400 invalid면 아무것도 쓰지 않는다)
  *   GET /api/rooms/:id/sql        관계 모델 글과 컬럼 설정에서 만든 CREATE TABLE 문(text/plain). ?dialect=postgresql | mysql | oracle (없으면 방에서 고른 DBMS, 그것도 없으면 postgresql)
  *                                 ERD에서 아무것도 추측하지 않는다. 타입을 정하지 않은 컬럼은 SQL에 '/* 타입 미지정 *\/' 자리 표시로 들어가고,
  *                                 그 목록은 SQL 머리 주석으로 적고 개수는 X-Missing-Types 헤더로 준다.
@@ -29,6 +33,7 @@ import { ROOM_ID_PATTERN } from '../shared/types';
 import { fromMarkup, parseMarkup, parseRelational, toMarkup, toSql } from '../shared/relational';
 import { isSqlDialect } from '../shared/relational/sql';
 import { readColumnSettings, readRelationalSource, readRoomDialect, setRelationalSource } from '../shared/relational/ydoc';
+import { applyIeDocument, planIeDocument, readIeDocument } from '../shared/relational/ieDocument';
 import { problemText } from '../cli/format';
 import type { RelProblem } from '../shared/relational/userSchema';
 import { getEdges, getNodes, getTitle } from '../shared/ydoc';
@@ -63,6 +68,13 @@ export interface HttpDeps extends McpDeps {
 
 function isUnder(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** 화면이 있는 주소인지. 클라이언트 라우터(src/client/router.ts)와 같은 규칙이다: 첫 화면, 또는 /r/<방 id>(끝의 / 하나는 허용) */
+export function isAppPath(pathname: string): boolean {
+  if (pathname === '/') return true;
+  const m = /^\/r\/([^/]+)\/?$/.exec(pathname);
+  return m !== null && ROOM_ID_PATTERN.test(m[1]);
 }
 
 /** 읽지 못한 위치가 담긴 오류인지. 번들이 나뉘어 클래스가 달라져도 알아보도록 이름으로 본다 */
@@ -271,6 +283,48 @@ export function createApp(deps: HttpDeps): Express {
     res.json({ ok: true, room: id, changed, tables: schema.tables.length, problems: problems.map(problemJson) });
   });
 
+  app.get('/api/rooms/:id/ie', guardRoom, async (req, res) => {
+    const id = String(req.params.id);
+    if (await deps.isNewRoom(id)) {
+      res.status(404).json({ ok: false, error: 'not-found' });
+      return;
+    }
+    const out = await deps.withDoc(id, (doc) => ({ title: getTitle(doc), ...readIeDocument(doc) }));
+    metrics?.cliCall('ie');
+    res.json({ room: id, title: out.title, ...out.document, problems: out.problems.map(problemJson) });
+  });
+
+  app.put('/api/rooms/:id/ie', guardRoom, readModelBody, async (req, res) => {
+    const id = String(req.params.id);
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    let input: unknown;
+    try {
+      input = JSON.parse(new TextDecoder().decode(raw));
+    } catch {
+      res.status(400).json({ ok: false, error: 'bad-request', message: 'expected a JSON body like { "tables": [...], "relationships": [...] }' });
+      return;
+    }
+    // 틀린 문서는 방을 건드리기 전에 모두 알린다
+    const plan = planIeDocument(input);
+    if (!plan.ok) {
+      res.status(400).json({ ok: false, error: 'invalid', message: plan.errors[0], errors: plan.errors });
+      return;
+    }
+    if (await deps.isNewRoom(id)) {
+      res.status(404).json({ ok: false, error: 'not-found' });
+      return;
+    }
+    const changed = await deps.withDoc(id, (doc) => applyIeDocument(doc, plan, 'api'));
+    if (metrics) {
+      metrics.cliCall('ie-push');
+      if (changed) {
+        metrics.aiRoom(id, 'modify');
+        if (plan.counts.tables > 0) metrics.relationalWritten(id);
+      }
+    }
+    res.json({ ok: true, room: id, changed, ...plan.counts, warnings: plan.warnings });
+  });
+
   app.get('/api/rooms/:id/sql', guardRoom, async (req, res) => {
     const id = String(req.params.id);
     const asked = req.query.dialect === undefined ? null : String(req.query.dialect).toLowerCase();
@@ -386,6 +440,12 @@ export function createApp(deps: HttpDeps): Express {
 
   // ───────────────────────── 정적 파일 ─────────────────────────
 
+  // /index.html은 첫 화면과 같은 문서다. 검색에 주소가 둘로 나뉘지 않게 첫 화면으로 넘긴다(쿼리는 그대로 둔다)
+  app.get('/index.html', (req, res) => {
+    const q = req.originalUrl.indexOf('?');
+    res.redirect(301, q === -1 ? '/' : `/${req.originalUrl.slice(q)}`);
+  });
+
   app.use(
     express.static(staticDir, {
       index: false,
@@ -427,13 +487,19 @@ export function createApp(deps: HttpDeps): Express {
     next();
   });
 
-  // 나머지 GET은 SPA 경로(/r/<id>)로 보고 index.html을 준다
+  // 나머지 GET은 SPA 경로로 보고 index.html을 준다.
+  // 화면이 있는 주소는 첫 화면(/)과 방(/r/<id>)뿐이다. 그 밖의 주소에도 화면(첫 화면)은 그대로 주되 404로 답한다.
+  // 200으로 주면 검색 엔진이 첫 화면과 같은 내용의 주소가 여럿 있다고 보거나(soft 404) 엉뚱한 주소를 색인한다.
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const pathname = req.path;
     if (isUnder(pathname, '/api') || isUnder(pathname, '/ws') || isUnder(pathname, '/assets') || isUnder(pathname, '/mcp')) return next();
     // 확장자가 있는 경로는 없는 파일을 찾는 요청이다. html을 대신 주지 않는다.
     if (path.posix.basename(pathname).includes('.')) return next();
+    if (!isAppPath(pathname)) {
+      res.status(404);
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(indexFile, (err) => {
       if (!err || res.headersSent) return;

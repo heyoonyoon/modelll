@@ -6,7 +6,7 @@
  * 우클릭 메뉴의 붙여넣기는 권한 창을 띄우지 않으려고 모듈 안에 둔 마지막 복사본을 쓴다.
  */
 import { rectsIntersect, unionBounds } from '../../shared/geometry';
-import type { ErdEdge, ErdNode, KeyType, NodeKind, Point, Rect, SpecType } from '../../shared/types';
+import { isAnchor, type ErdEdge, type ErdNode, type KeyType, type NodeKind, type Point, type Rect, type SpecType } from '../../shared/types';
 import { visibleWorldRect } from '../canvas/coords';
 import { ui } from '../state/ui';
 import { addEdges, addNodes, deleteElements, getEdgesMap, getNodesMap, newId, transact } from './docOps';
@@ -86,9 +86,9 @@ function sanitizeEdge(raw: unknown): ErdEdge | null {
     label: typeof raw.label === 'string' ? raw.label : '',
     role: typeof raw.role === 'string' ? raw.role : '',
   };
-  const isSide = (v: unknown): v is NonNullable<ErdEdge['sourceSide']> => v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
-  if (isSide(raw.sourceSide)) edge.sourceSide = raw.sourceSide;
-  if (isSide(raw.targetSide)) edge.targetSide = raw.targetSide;
+  // 모르는 값은 자동(없음)으로 둔다
+  if (isAnchor(raw.sourceSide)) edge.sourceSide = raw.sourceSide;
+  if (isAnchor(raw.targetSide)) edge.targetSide = raw.targetSide;
   if (raw.shape === 'straight' || raw.shape === 'elbow') edge.shape = raw.shape;
   return edge;
 }

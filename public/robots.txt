@@ -1,5 +1,24 @@
 # 방 주소(/r/...)는 여기서 막지 않는다. 막으면 검색 로봇이 응답에 붙은 noindex 표시를 읽지 못한다.
+# 검색 로봇과 AI 로봇을 이름으로도 적어 둔다. 이름이 적힌 로봇은 * 규칙 대신 자기 묶음만 읽으므로 모두 한 묶음에 두어 같은 규칙을 따르게 한다.
 User-agent: *
+User-agent: Googlebot
+User-agent: Google-Extended
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: DuckDuckBot
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: CCBot
+User-agent: meta-externalagent
+User-agent: MistralAI-User
+Allow: /
 Disallow: /api/
 Disallow: /ws/
 

@@ -164,7 +164,11 @@ export function Grid() {
   const showGrid = useUi((s) => s.showGrid);
   const viewport = useUi((s) => s.viewport);
   if (!showGrid) return null;
+  return <GridDots viewport={viewport} patternId={GRID_PATTERN_ID} />;
+}
 
+/** 화면 좌표로 찍는 격자 점. IE 그림도 자기 화면 위치로 같은 격자를 그린다(ui.showGrid를 함께 따른다) */
+export function GridDots({ viewport, patternId }: { viewport: Viewport; patternId: string }) {
   const g = gridLayout(viewport);
   const half = g.step / 2;
   return (
@@ -172,7 +176,7 @@ export function Grid() {
       <defs>
         {/* 점이 타일 가장자리에서 잘리지 않게 타일 가운데에 찍고, 타일을 반 칸 당겨 놓는다 */}
         <pattern
-          id={GRID_PATTERN_ID}
+          id={patternId}
           patternUnits="userSpaceOnUse"
           x={g.offsetX - half}
           y={g.offsetY - half}
@@ -182,7 +186,7 @@ export function Grid() {
           <circle className="viewport-grid-dot" cx={half} cy={half} r={1} />
         </pattern>
       </defs>
-      <rect x={0} y={0} width="100%" height="100%" fill={`url(#${GRID_PATTERN_ID})`} pointerEvents="none" />
+      <rect x={0} y={0} width="100%" height="100%" fill={`url(#${patternId})`} pointerEvents="none" />
     </g>
   );
 }
@@ -248,12 +252,9 @@ function FitButton() {
   );
 }
 
-/** 왼쪽 아래의 확대/축소 버튼 묶음(−, 배율 %, +, 전체 보기, 격자 켜기/끄기, 붙기 켜기/끄기) */
+/** 왼쪽 아래의 확대/축소 버튼 묶음(−, 배율 %, +, 전체 보기). 격자, 붙기, 미니맵은 다이어그램 정보 패널에 있다 */
 export function ZoomControls() {
   const zoom = useUi((s) => s.viewport.zoom);
-  const showGrid = useUi((s) => s.showGrid);
-  const snapEnabled = useUi((s) => s.snapEnabled);
-  const minimapOpen = useUi((s) => s.panels.minimap);
   const percent = Math.round(zoom * 100);
   const t = useT();
 
@@ -280,63 +281,16 @@ export function ZoomControls() {
         </Icon>
       </IconButton>
       <FitButton />
-      <span className="zoom-controls-sep" aria-hidden="true" />
-      <IconButton
-        label={t('view.grid')}
-        title={showGrid ? t('view.gridOff') : t('view.gridOn')}
-        testId="toggle-grid"
-        pressed={showGrid}
-        onClick={() => ui().setShowGrid(!ui().showGrid)}
-      >
-        <Icon>
-          <g fill="currentColor" stroke="none">
-            <circle cx="3.5" cy="3.5" r="1.1" />
-            <circle cx="8" cy="3.5" r="1.1" />
-            <circle cx="12.5" cy="3.5" r="1.1" />
-            <circle cx="3.5" cy="8" r="1.1" />
-            <circle cx="8" cy="8" r="1.1" />
-            <circle cx="12.5" cy="8" r="1.1" />
-            <circle cx="3.5" cy="12.5" r="1.1" />
-            <circle cx="8" cy="12.5" r="1.1" />
-            <circle cx="12.5" cy="12.5" r="1.1" />
-          </g>
-        </Icon>
-      </IconButton>
-      <IconButton
-        label={t('view.snap')}
-        title={snapEnabled ? t('view.snapOff') : t('view.snapOn')}
-        testId="toggle-snap"
-        pressed={snapEnabled}
-        onClick={() => ui().setSnapEnabled(!ui().snapEnabled)}
-      >
-        {/* 안내선 하나에 도형 두 개가 맞춰 선 모양 */}
-        <Icon>
-          <path d="M3 1.5v13" />
-          <rect x="5.5" y="3" width="8" height="3.5" rx="0.5" />
-          <rect x="5.5" y="9.5" width="5" height="3.5" rx="0.5" />
-        </Icon>
-      </IconButton>
-      <IconButton
-        label={t('view.minimap')}
-        title={minimapOpen ? t('view.minimapOff') : t('view.minimapOn')}
-        testId="toggle-minimap"
-        pressed={minimapOpen}
-        onClick={() => ui().togglePanel('minimap')}
-      >
-        <Icon>
-          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-          <rect x="8" y="8" width="4.5" height="3.5" rx="0.5" fill="currentColor" stroke="none" />
-        </Icon>
-      </IconButton>
     </div>
   );
 }
 
 // ───────────────────────── 미니맵 ─────────────────────────
 
-const MINIMAP_W = 200;
-const MINIMAP_H = 140;
-const MINIMAP_PADDING = 8;
+/** 미니맵 크기. 캔버스를 덜 가리게 작게 두되 끌어서 옮길 수 있을 만큼은 둔다 */
+const MINIMAP_W = 112;
+const MINIMAP_H = 78;
+const MINIMAP_PADDING = 6;
 
 /** 다른 pane의 강조에 따른 미니맵 도형 상태 */
 type MiniMark = 'related' | 'dimmed' | null;

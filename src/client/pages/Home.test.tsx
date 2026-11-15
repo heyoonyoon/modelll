@@ -10,7 +10,8 @@ import { useToasts } from '../ui/toast';
 import { REPO_URL } from './githubStars';
 import { Home } from './Home';
 import { AI_NODES, AI_TEXT, modelName } from './HomeAi';
-import { NODES, SAMPLE_TEXT, sqlExample } from './HomePreview';
+import { MIGRATE_NODES, MIGRATE_TEXT } from './HomeMigrate';
+import { NODES, SAMPLE_TEXT, ieLayout } from './HomePreview';
 import { stageAt } from './HomeStages';
 
 const HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
@@ -206,16 +207,16 @@ describe('Home', () => {
     expect(reveals.length).toBeGreaterThan(0);
     reveals.forEach((el) => expect(el.classList.contains('is-in')).toBe(true));
     expect(container.querySelector('.home-sheet-row.is-armed')).toBeNull();
-    // 제품 화면 예시는 분할 화면에서 타입까지 채운 IE 장면에 멈춰 있다
+    // 제품 화면 예시는 ERD와 IE를 둘 다 다 그린 장면에 멈춰 있다
     const split = screen.getByTestId('home-pv-split');
-    expect(split.getAttribute('data-tab')).toBe('ie');
     expect(split.querySelectorAll('[data-node-id]')).toHaveLength(7);
     expect(split.querySelectorAll('[data-edge-id]')).toHaveLength(6);
     expect(split.querySelector('.is-new')).toBeNull();
-    expect(split.querySelectorAll('.home-pv-word.is-ul')).toHaveLength(2);
-    expect(split.querySelector('.home-pv-caret')).toBeNull();
+    expect(split.querySelectorAll('[data-table]')).toHaveLength(2);
+    expect(split.querySelector('[data-testid="home-pv-ie-link"]')).not.toBeNull();
+    expect(split.querySelector('[data-testid="home-pv-draft"]')).toBeNull();
     expect(split.querySelector('[data-testid="home-pv-menu"]')).toBeNull();
-    // 지민은 IE에, 서연은 관계 모델 칸에 있다
+    // 지민은 ERD에, 서연은 IE에 있다
     expect(split.querySelectorAll('.home-pv-hcursor')).toHaveLength(2);
     // 세 단계 구역은 고정 없이 세 단계를 모두 보여 주고 영상은 재생 버튼을 둔다
     expect(screen.getByTestId('home-stages').classList.contains('is-pinned')).toBe(false);
@@ -255,21 +256,21 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     const { container } = render(<Home />);
     expect(APP_NAME).toBe('modelll');
     // 탭 제목은 이름으로 시작하고 무엇을 하는 곳인지까지 적는다
-    expect(document.title).toBe('modelll | 팀과 AI가 함께, ERD부터 SQL까지');
+    expect(document.title).toBe('modelll | Chen 표기법 ERD와 IE 다이어그램, 팀과 AI가 함께 실시간으로');
     expect(container.querySelector('.home-brand-name')!.textContent).toBe('modelll');
     // 옛 이름이 화면에 남아 있지 않다(Chen 표기법이라는 말은 남는다)
     expect(container.textContent).not.toContain('Chen ERD');
-    expect(container.querySelector('.home-lead')!.textContent).toContain('Chen 표기법');
-    // 처음 온 사람이 머리글에서 설계 세 단계와 AI가 함께 그릴 수 있다는 것을 알게 한다
-    expect(container.querySelector('.home-lead')!.textContent).toContain('개념적, 논리적, 물리적 설계');
-    expect(container.querySelector('.home-lead')!.textContent).toContain('Claude나 ChatGPT 같은 AI');
+    expect(container.querySelector('.home-title')!.textContent).toContain('Chen 표기법');
+    // 처음 온 사람이 머리글에서 실시간 공동 편집과 AI가 CLI나 MCP로 함께 그린다는 것을 알게 한다
+    expect(container.querySelector('.home-lead')!.textContent).toContain('실시간으로 함께 편집하고');
+    expect(container.querySelector('.home-lead')!.textContent).toContain('modelll CLI나 MCP');
   });
 
   it('한국어 제목은 세 줄이다', () => {
     const { container } = render(<Home />);
     const title = container.querySelector('.home-title')!;
     expect(title.querySelectorAll('br')).toHaveLength(2);
-    expect(title.textContent).toBe('팀과 AI가 함께.ERD부터 SQL까지.데이터베이스 모델링을 한\u00a0곳에서.');
+    expect(title.textContent).toBe('Chen 표기법 ERD도,IE 다이어그램도.팀과 AI가 함께 실시간으로.');
   });
 
   it('표기 표의 속성 줄은 네 가지이고 유도 속성은 없다', () => {
@@ -288,7 +289,7 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
       'Multivalued attribute',
     ]);
     // 제품 화면 예시의 도구 줄에도 유도 속성 도구가 없다(선택 도구 + 도형 6개)
-    expect(container.querySelectorAll('.home-pv-tool')).toHaveLength(7);
+    expect(container.querySelectorAll('.home-pv-pane.is-erd .home-pv-tool')).toHaveLength(7);
   });
 
   it('표기 표는 ERD, 관계 모델, IE 다이어그램, SQL 네 탭이고 고른 묶음만 그린다', () => {
@@ -348,7 +349,7 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     const { container } = render(<Home />);
     const title = container.querySelector('.home-title')!;
     expect(title.querySelectorAll('br')).toHaveLength(2);
-    expect(title.textContent).toBe('Your team and AI, together.From ERD to SQL.Database modeling in one place.');
+    expect(title.textContent).toBe('Chen ER diagrams.IE crow’s foot diagrams.Live, with your team and AI.');
     expect(screen.getByTestId('create-room').textContent).toBe('Create a new diagram');
     expect(screen.getByTestId('join-button').textContent).toBe('Join');
     expect(screen.getByTestId('recent-room').textContent).toContain('Untitled diagram');
@@ -364,7 +365,7 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(preview.querySelector('.home-pv-title')!.textContent).toBe('Student records');
     expect(preview.querySelector('.home-pv-saved')!.textContent).toBe('Saved');
     expect(preview.querySelector('.home-pv-share')!.textContent).toBe('Share');
-    expect([...preview.querySelectorAll('.home-pv-tab')].map((el) => el.textContent)).toEqual(['ERD×', 'Relational model×', 'IE diagram×', 'SQL']);
+    expect([...preview.querySelectorAll('.home-pv-tab')].map((el) => el.textContent)).toEqual(['ERD×', 'IE diagram×']);
     const labels = [...preview.querySelectorAll('[data-node-id] text')].map((el) => el.textContent);
     expect(labels).toEqual(expect.arrayContaining(['Student', 'Department', 'Student ID']));
     expect([...preview.querySelectorAll('.home-pv-hcursor > span')].map((el) => el.textContent)).toEqual(['Emma', 'Liam']);
@@ -412,32 +413,33 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(allText(container)).not.toMatch(/수업|학습|익히/);
   });
 
-  it('히어로 예시: 분할 화면에 ERD, 관계 모델 글, IE 표를 그린다', () => {
+  it('히어로 예시: 반으로 나눈 화면에 같은 크기로 ERD와 IE를 그리고, 관계 모델 글은 없다', () => {
     render(<Home />);
     const preview = document.querySelector('.home-pv')!;
-    expect([...preview.querySelectorAll('.home-pv-tab')].map((el) => el.textContent)).toEqual(['ERD×', '관계 모델×', 'IE 다이어그램×', 'SQL']);
+    expect([...preview.querySelectorAll('.home-pv-tab')].map((el) => el.textContent)).toEqual(['ERD×', 'IE 다이어그램×']);
+    expect(preview.querySelectorAll('.home-pv-pane')).toHaveLength(2);
+    expect(preview.querySelector('[data-testid="home-pv-relational"]')).toBeNull();
+    expect(preview.querySelector('[data-testid="home-pv-sql"]')).toBeNull();
     expect(preview.querySelector('.home-pv-title')!.textContent).toBe('학적 관리');
     expect([...preview.querySelectorAll('[data-node-id] text')].map((el) => el.textContent)).toEqual(
       expect.arrayContaining(['학생', '학과', '소속', '학번', '학과코드']),
     );
-    // 관계 모델 글: 줄 번호와 세 줄, 기본키 밑줄
-    const rel = screen.getByTestId('home-pv-relational');
-    expect([...rel.querySelectorAll('.home-pv-ln')].map((el) => el.textContent)).toEqual(['1', '2', '3']);
-    expect([...rel.querySelectorAll('.home-pv-text')].map((el) => el.textContent)).toEqual([
-      '학과 (학과코드, 학과명)',
-      '학생 (학번, 이름, 학과코드)',
-      'Foreign Key (학과코드) references 학과 (학과코드)',
-    ]);
-    expect([...rel.querySelectorAll('.home-pv-word.is-ul')].map((el) => el.textContent)).toEqual(['학과코드', '학번']);
-    expect(rel.querySelector('.home-pv-btn')!.textContent).toBe('밑줄');
-    // IE: 표 둘, PK와 FK, 메뉴에서 고른 타입과 NOT NULL
+    // 두 칸 모두 도구 막대가 있다(IE는 선택과 테이블 추가)
+    expect(preview.querySelectorAll('.home-pv-pane.is-ie .home-pv-tool')).toHaveLength(2);
+    // IE: 학생과 학과 표, 칸 이름 줄, PK와 관계를 이어 생긴 FK, 메뉴에서 고른 타입
     const ie = screen.getByTestId('home-pv-ie');
-    expect([...ie.querySelectorAll('.home-ie-name')].map((el) => el.textContent)).toEqual(['학과', '학생']);
-    expect([...ie.querySelectorAll('.home-ie-tag')].map((el) => el.textContent)).toEqual(['PK', 'PK', 'FK']);
-    // 타입은 메뉴에서 고른 두 칸만 채워져 있다(누르지 않은 칸은 비어 있다)
+    expect([...ie.querySelectorAll('.home-ie-name')].map((el) => el.textContent)).toEqual(['학생', '학과']);
+    expect([...ie.querySelectorAll('[data-table="학생"] .home-pv-ie-label')].map((el) => el.textContent)).toEqual(['키', '이름', '타입', 'NULL']);
+    expect([...ie.querySelectorAll('[data-table="학생"] [data-column]')].map((el) => el.getAttribute('data-column'))).toEqual(['학번', '이름', '학과코드']);
+    expect([...ie.querySelectorAll('.home-ie-tag')].map((el) => el.textContent)).toEqual(['PK', 'FK', 'PK']);
     expect([...ie.querySelectorAll('[data-type]')].map((el) => el.getAttribute('data-type'))).toEqual(['CHAR(10)', 'VARCHAR(255)']);
-    expect([...ie.querySelectorAll('.home-ie-null')].map((el) => el.textContent)).toEqual(['NOT NULL', 'NOT NULL', 'NOT NULL']);
-    expect(preview.querySelector('.home-pv-select')!.textContent).toBe('MySQL');
+    expect([...ie.querySelectorAll('.home-ie-null')].map((el) => el.textContent)).toEqual(['NOT NULL', 'NOT NULL']);
+    // 관계선: 비식별(점선), 학생 쪽은 동그라미와 까마귀발, 학과 쪽은 막대 둘
+    const link = screen.getByTestId('home-pv-ie-link');
+    expect(link.querySelector('.home-ie-link')).not.toBeNull();
+    expect(link.querySelectorAll('circle.home-ie-mark')).toHaveLength(1);
+    expect(link.querySelectorAll('path.home-ie-mark')).toHaveLength(1);
+    expect(link.querySelectorAll('line.home-ie-mark')).toHaveLength(2);
   });
 
   it('세 단계 구역: 이름의 l 세 개가 개념적, 논리적, 물리적 설계이고 단계마다 실제 화면 영상이 있다', () => {
@@ -466,8 +468,8 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(screen.getByTestId('home-stage-video-logical').querySelector('button')!.getAttribute('aria-label')).toBe('논리적 설계 화면 녹화 재생');
 
     const logical = screen.getByTestId('home-stage-logical');
-    expect(logical.textContent).toContain('학생 (학번, 이름, 학과코드)처럼 적습니다');
-    expect(logical.textContent).toContain('ERD에서 멋대로 변환하지 않으므로');
+    expect(logical.textContent).toContain('테이블을 학생 (학번, 이름, 학과코드)처럼 글로 적으면');
+    expect(logical.textContent).toContain('둘은 늘 같습니다');
     expect(screen.getByTestId('home-stage-physical').textContent).toContain('MySQL, PostgreSQL, Oracle');
   });
 
@@ -500,17 +502,8 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
   it('영어: 예시 이름과 SQL이 영어로 나온다', async () => {
     await switchTo('en');
     render(<Home />);
-    expect(screen.getByTestId('home-pv-relational').textContent).toContain('Student (Student ID, Name, Dept code)');
-    expect(screen.getByTestId('home-stage-logical').textContent).toContain('like Student (Student ID, Name, Dept code).');
-  });
-
-  it('히어로 예시의 SQL은 IE에서 고른 타입과 NOT NULL을 쓴다', () => {
-    const sql = sqlExample((key) => ({ 'home.sample.student': '학생', 'home.sample.studentId': '학번', 'home.sample.name': '이름', 'home.sample.dept': '학과', 'home.sample.deptCode': '학과코드' })[key as string] ?? key);
-    expect(sql).toContain('CREATE TABLE `학생` (');
-    expect(sql).toContain('`학번` CHAR(10) NOT NULL,');
-    expect(sql).toContain('`이름` VARCHAR(255) NOT NULL,');
-    expect(sql).toContain('`학과코드` /* 타입 미지정 */,');
-    expect(sql).toContain('REFERENCES `학과` (`학과코드`)');
+    expect([...screen.getByTestId('home-pv-ie').querySelectorAll('.home-ie-name')].map((el) => el.textContent)).toEqual(['Student', 'Department']);
+    expect(screen.getByTestId('home-stage-logical').textContent).toContain('like Student (Student ID, Name, Dept code), and');
   });
 
   it('AI 구역: 요청과 글로 쓴 모델, 그 모델대로 그린 다이어그램을 나란히 보여 준다', () => {
@@ -550,8 +543,14 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     // 두 방법을 CLI와 MCP라는 이름으로 나란히 부른다. 로컬 MCP 서버를 추가하는 카드는 없다
     expect(screen.getByTestId('home-ai').querySelector('h3')!.textContent).toBe('AI를 연결하는 두 가지 방법');
     const ways = [...document.querySelectorAll('.home-way')];
-    expect(ways.map((el) => el.getAttribute('data-testid'))).toEqual(['home-way-cli', 'home-way-mcp', 'home-migrate']);
-    expect(ways.map((el) => el.querySelector('h4')!.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기', '다른 도구의 ERD를 그대로 옮기기']);
+    expect(ways.map((el) => el.getAttribute('data-testid'))).toEqual(['home-way-cli', 'home-way-mcp']);
+    expect(ways.map((el) => el.querySelector('h4')!.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기']);
+    // 기존 ERD 옮기기는 연결 방법이 아니라 사용 사례라서 따로 머리글과 그림을 둔다
+    const migrate = screen.getByTestId('home-migrate');
+    expect(migrate.querySelector('.home-uc-eyebrow')!.textContent).toBe('사용 사례');
+    expect(migrate.querySelector('h3')!.textContent).toBe('기존 ERD를 그림 한 장으로 옮깁니다');
+    expect(screen.getByTestId('migrate-figure').getAttribute('aria-label')).toContain('손으로 그린 ERD 사진');
+    expect(screen.getByTestId('home-migrate-text').textContent).toContain('npx -y modelll ie push');
     expect(screen.getByTestId('home-way-cli').textContent).toContain('npx -y modelll 명령으로');
     expect(screen.getByTestId('home-way-mcp').textContent).toContain('claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구');
     expect(screen.getByTestId('home-way-mcp').textContent).toContain('원격 MCP 서버나 커넥터로 추가합니다');
@@ -559,7 +558,7 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(screen.getByTestId('home-ai').textContent).not.toContain('mcpServers');
     expect(screen.getByTestId('home-ai').textContent).not.toContain('modelll mcp');
 
-    const cli = '`npx -y modelll syntax`로 텍스트 형식을 읽고 도서관 대출 관리 ERD를 `npx -y modelll new`로 만들어 방 주소를 알려 주세요.';
+    const cli = '`npx -y modelll --help`로 명령을 확인하고 도서관 대출 관리 ERD를 `npx -y modelll new`로 만든 뒤 같은 방에 IE 다이어그램도 `npx -y modelll ie push`로 그려 방 주소를 알려 주세요.';
     expect(screen.getByTestId('home-cli-text').textContent).toBe(cli);
     fireEvent.click(screen.getByTestId('home-cli-copy'));
     await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사했습니다', 'info']));
@@ -576,10 +575,11 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(document.querySelectorAll('.toast-stack')).toHaveLength(1);
   });
 
-  it('이용 안내는 가입, 링크, 언어, 보관 기간 네 가지다', () => {
+  it('이용 안내는 가입, 링크, 오픈 소스, 보관 기간 네 가지이고 제목은 합니다체다', () => {
     render(<Home />);
     const facts = screen.getByTestId('home-facts');
-    expect([...facts.querySelectorAll('h3')].map((el) => el.textContent)).toEqual(['가입 없이 시작', '링크가 곧 방', '10개 언어', '30일 보관']);
+    expect([...facts.querySelectorAll('h3')].map((el) => el.textContent)).toEqual(['가입 없이 시작합니다', '링크가 곧 방입니다', '무료 오픈 소스입니다', '30일 동안 보관합니다']);
+    expect(facts.textContent).toContain('MIT 라이선스');
     expect(facts.textContent).toContain('30일 동안 아무도 열지 않은 다이어그램은 자동으로 삭제되므로');
   });
 
@@ -598,7 +598,7 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(model).toContain('entity Course { "Course code" key, Credits }\n');
     expect(model).toContain('relationship Enrolls (Student M total, Course N) { Grade }\n');
     expect(screen.getByTestId('home-cli-text').textContent).toBe(
-      'Run `npx -y modelll syntax` to read the text format, then create an ERD for a library loan system with `npx -y modelll new` and give me the room URL.',
+      'Run `npx -y modelll --help` to see the commands, create an ERD for a library loan system with `npx -y modelll new`, add its IE diagram to the same room with `npx -y modelll ie push`, and give me the room URL.',
     );
     expect(modelName('Student')).toBe('Student');
     expect(modelName('a "b"')).toBe('"a \\"b\\""');
@@ -636,7 +636,14 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
         // 어림한 글자 폭이 도형 폭의 86%를 넘지 않게 한다(타원과 마름모는 가장자리로 갈수록 좁아진다)
         expect(approximateLineWidth(text), `${locale} ${node.id} "${text}"`).toBeLessThanOrEqual(node.w * 0.86);
       }
-      // AI 구역의 예시 다이어그램도 같은 기준을 지킨다
+      // AI 구역과 사용 사례의 예시 다이어그램도 같은 기준을 지킨다
+      for (const node of MIGRATE_NODES) {
+        const text = dict[MIGRATE_TEXT[node.id]] as string;
+        expect(approximateLineWidth(text), `${locale} migrate ${node.id} "${text}"`).toBeLessThanOrEqual(node.w * 0.86);
+      }
+      // IE 표의 칸 폭은 글자를 재서 정하므로 표 폭이 화면 칸에 들어갈 만큼만 넓어진다
+      const ie = ieLayout(((key: string) => (dict[key as keyof typeof dict] as string) ?? key) as never);
+      expect(ie.w, `${locale} ie width`).toBeLessThanOrEqual(400);
       for (const node of AI_NODES) {
         const text = dict[AI_TEXT[node.id]] as string;
         expect(text.includes('\n'), `${locale} ai ${node.id}`).toBe(false);

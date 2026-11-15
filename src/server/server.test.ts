@@ -51,7 +51,7 @@ describe('ERD 서버', () => {
     });
   }
 
-  const api = (urlPath: string) => fetch(`http://127.0.0.1:${port}${urlPath}`);
+  const api = (urlPath: string, init?: RequestInit) => fetch(`http://127.0.0.1:${port}${urlPath}`, init);
 
   beforeEach(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'erd-server-'));
@@ -360,10 +360,24 @@ describe('ERD 서버', () => {
     expect(room.status).toBe(200);
     expect(room.headers.get('content-type')).toContain('text/html');
 
-    for (const p of ['/', '/index.html', '/rooms']) {
+    for (const p of ['/', '/index.html']) {
       const res = await api(p);
       expect(res.status, p).toBe(200);
       expect(res.headers.get('x-robots-tag'), p).toBeNull();
+    }
+
+    // /index.html은 첫 화면으로 넘긴다
+    const index = await api('/index.html?x=1', { redirect: 'manual' });
+    expect(index.status).toBe(301);
+    expect(index.headers.get('location')).toBe('/?x=1');
+
+    // 화면이 없는 주소는 화면(첫 화면)을 주되 404이고 검색에 나오지 않는다(soft 404를 막는다)
+    for (const p of ['/rooms', '/r', '/r/abc/def', '/r/bad%20id', '/about/']) {
+      const res = await api(p);
+      expect(res.status, p).toBe(404);
+      expect(res.headers.get('content-type'), p).toContain('text/html');
+      expect(res.headers.get('x-robots-tag'), p).toBe('noindex, nofollow');
+      expect(await res.text(), p).toContain('<title>erd</title>');
     }
   });
 });

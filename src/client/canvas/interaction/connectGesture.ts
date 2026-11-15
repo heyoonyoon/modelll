@@ -3,7 +3,7 @@
  */
 import { pointInNode } from '../../../shared/geometry';
 import { canConnect, defaultEdgeProps, edgeCanBeDouble } from '../../../shared/rules';
-import type { ErdNode, Point, Side } from '../../../shared/types';
+import type { Anchor, ErdNode, Point } from '../../../shared/types';
 import { addEdge, addNode, createEdge, createNodeFromPreset, transact } from '../../collab/docOps';
 import { t, tSentence } from '../../i18n';
 import { growToFit } from '../../text/measure';
@@ -19,7 +19,7 @@ export interface ConnectOptions {
   /** 이중선으로 만들지(이중선 연결 도구) */
   double: boolean;
   /** 연결 점에서 끌기 시작했으면 그 면(몸통에서 끌었으면 없음) */
-  sourceSide?: Side | null;
+  sourceSide?: Anchor | null;
 }
 
 /** 연결 도구로 선을 하나 이은 뒤에는 선택 도구로 돌아간다(도구 잠금이면 유지). */
@@ -42,7 +42,7 @@ export function startConnect(ctx: GestureCtx, down: PointerSnap, sourceId: strin
     source: ErdNode;
     target: ErdNode | null;
     /** 대상의 고정점에 달라붙었으면 그 면 */
-    targetSide: Side | null;
+    targetSide: Anchor | null;
     valid: boolean;
     to: Point;
   }
@@ -70,7 +70,7 @@ export function startConnect(ctx: GestureCtx, down: PointerSnap, sourceId: strin
     return { source, target, targetSide, valid, to };
   };
 
-  const connectTo = (source: ErdNode, target: ErdNode, targetSide: Side | null): void => {
+  const connectTo = (source: ErdNode, target: ErdNode, targetSide: Anchor | null): void => {
     const defaults = defaultEdgeProps(source, target);
     const double = defaults.double || (opts.double && edgeCanBeDouble(source, target));
     const edge = createEdge(source.id, target.id, { ...defaults, double, ...edgeSideProps(source, target, sourceSide, targetSide) });

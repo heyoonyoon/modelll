@@ -382,16 +382,14 @@ describe('연결할 때 붙는 면 기록', () => {
     expect(room.edges.getSnapshot()).toMatchObject([{ source: 'e', target: 's', sourceSide: 'bottom', targetSide: 'top' }]);
   });
 
-  it('속성이 낀 선은 연결 점에서 시작해 고정점에 놓아도 면을 저장하지 않는다', () => {
+  it('(바뀜) 속성이 낀 선도 연결 점에서 시작하면 그 자리에 붙는다(연결 점 여덟 곳이 모두 붙는 자리)', () => {
     const g = startConnect(ctx, at(50, 64), 'e', { double: false, sourceSide: 'bottom' });
     g.move(at(60, 302));
     expect(ui().connectDraft).toMatchObject({ targetId: 'a', valid: true });
-    expect(canvasLocal()).toMatchObject({ connectShowAnchors: false, connectTargetSide: null });
+    expect(canvasLocal()).toMatchObject({ connectShowAnchors: true });
     g.end(at(60, 302));
     const edge = room.edges.getSnapshot()[0];
-    expect(edge).toMatchObject({ source: 'e', target: 'a' });
-    expect(edge.sourceSide).toBeUndefined();
-    expect(edge.targetSide).toBeUndefined();
+    expect(edge).toMatchObject({ source: 'e', target: 'a', sourceSide: 'bottom' });
   });
 
   it('빈 곳에 놓아 만든 속성 선도 면을 저장하지 않는다', () => {
@@ -415,7 +413,7 @@ describe('선의 끝점 옮기기', () => {
   it('끄는 동안 가까운 고정점에 달라붙고, 놓으면 그 면을 저장한다(실행 취소 한 단계)', () => {
     const before = room.undo.undoStack.length;
     const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
-    g.move(at(330, 20));
+    g.move(at(340, 45));
     expect(canvasLocal().mode).toBe('edge-end');
     expect(canvasLocal().edgeEndDrag).toMatchObject({ edgeId: 'x', end: 'target', nodeId: 'r', side: null });
     g.move(at(352, 4));
@@ -429,6 +427,39 @@ describe('선의 끝점 옮기기', () => {
 
     room.undo.undo();
     expect(room.edges.get('x')!.targetSide).toBeUndefined();
+  });
+
+  it('(추가) 면 사이 자리(마름모 변 가운데)에도 붙고, 그 자리에서 곧게 잇는다', () => {
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(336, 20));
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ nodeId: 'r', side: 'top-left' });
+    g.end(at(336, 20));
+    expect(room.edges.get('x')!.targetSide).toBe('top-left');
+  });
+
+  it('(추가) 다른 도형 위에 놓으면 이을 수 있을 때 그 도형으로 옮겨 붙인다(실행 취소 한 단계). 이을 수 없으면 그대로', () => {
+    addNodes(room.doc, [relationship('r2', 300, 300), entity('e2', 600, 0)]);
+    room.undo.stopCapturing();
+    const before = room.undo.undoStack.length;
+    let g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(370, 340));
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ nodeId: 'r2' });
+    g.end(at(370, 340));
+    expect(room.edges.get('x')).toMatchObject({ source: 'e', target: 'r2' });
+    expect(room.undo.undoStack.length).toBe(before + 1);
+    // 엔티티끼리는 이을 수 없다
+    g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(650, 25));
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ nodeId: 'r2' });
+    g.end(at(650, 25));
+    expect(room.edges.get('x')).toMatchObject({ target: 'r2' });
+    // 빈 곳에 놓으면 그대로
+    g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(900, 900));
+    g.end(at(900, 900));
+    expect(room.edges.get('x')).toMatchObject({ target: 'r2' });
+    room.undo.undo();
+    expect(room.edges.get('x')).toMatchObject({ target: 'r' });
   });
 
   it('source 쪽 끝은 source 도형의 고정점에 붙는다', () => {

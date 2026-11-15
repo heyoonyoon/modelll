@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import type { SqlDialect } from '../../shared/relational/userSchema';
 import { toast } from '../ui/toast';
 import '../layout/PaneMenu.css';
+import './menu.css';
 import { stopKeys } from './common';
 
 /** DBMS마다 흔한 타입. 괄호가 있는 것은 고르면 괄호 안을 고칠 수 있게 채운다 */

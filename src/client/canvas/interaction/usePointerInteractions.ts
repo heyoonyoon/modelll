@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { nodeRect } from '../../../shared/geometry';
 import { edgeCanBeDouble, edgeHasCardinality } from '../../../shared/rules';
-import { presetOfTool, type Side } from '../../../shared/types';
+import { presetOfTool, type Anchor } from '../../../shared/types';
 import { updateEdge } from '../../collab/docOps';
 import { useRoom } from '../../collab/hooks';
 import type { Room } from '../../collab/room';
@@ -14,7 +14,7 @@ import { clientToWorld } from '../coords';
 import { startConnect } from './connectGesture';
 import { startEdgeEnd, type EdgeEnd } from './edgeEndGesture';
 import { isAdditive, snapOf, type Gesture, type GestureCtx, type PointerSnap } from './gesture';
-import { CONNECT_DOT_OFFSET, CONNECT_DOT_RADIUS, inExpandedRect, isHandle, isSide, nextCardinality, type Handle } from './logic';
+import { CONNECT_DOT_OFFSET, CONNECT_DOT_RADIUS, inExpandedRect, isAnchor, isHandle, nextCardinality, type Handle } from './logic';
 import { startMove } from './moveGesture';
 import { startResize } from './resizeGesture';
 import { startMarquee, startPan, startPlace } from './simpleGestures';
@@ -29,7 +29,7 @@ export interface Hit {
   /** 연결 점이 붙어 있는 노드 id */
   connectFrom: string | null;
   /** 그 연결 점의 면 */
-  connectSide: Side | null;
+  connectSide: Anchor | null;
   /** 선의 끝점 손잡이(edgeId도 함께 채운다) */
   edgeEnd: EdgeEnd | null;
 }
@@ -48,7 +48,7 @@ export function hitOf(el: EventTarget | null): Hit {
   const dot = target.closest('[data-connect-from]');
   if (dot) {
     const side = dot.getAttribute('data-side');
-    return { ...NO_HIT, connectFrom: dot.getAttribute('data-connect-from'), connectSide: isSide(side) ? side : null };
+    return { ...NO_HIT, connectFrom: dot.getAttribute('data-connect-from'), connectSide: isAnchor(side) ? side : null };
   }
   const handleEl = target.closest('[data-handle]');
   if (handleEl) {
@@ -333,7 +333,18 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
         const u = ui();
         if (u.tool === 'pan' || presetOfTool(u.tool) || canvasLocal().spaceHeld) return;
         const hit = hitAt(e.currentTarget, e.clientX, e.clientY, e.target);
-        if (hit.connectFrom || hit.handle || hit.edgeEnd) return;
+        // 선의 끝점 손잡이를 두 번 누르면 그 끝을 자동으로 붙인다(붙는 자리를 지운다). 실행 취소 한 번
+        if (hit.edgeEnd && hit.edgeId) {
+          const edge = room.edges.get(hit.edgeId);
+          const key = hit.edgeEnd === 'source' ? 'sourceSide' : 'targetSide';
+          if (edge && edge[key] !== undefined) {
+            room.undo.stopCapturing();
+            updateEdge(room.doc, hit.edgeId, { [key]: undefined });
+            room.undo.stopCapturing();
+          }
+          return;
+        }
+        if (hit.connectFrom || hit.handle) return;
         if (hit.nodeId) {
           if (!room.nodes.has(hit.nodeId)) return;
           u.setSelection([hit.nodeId]);

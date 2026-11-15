@@ -22,7 +22,8 @@
   --radius: 8px;
   --radius-sm: 6px;
   --gap: 8px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
+  /* 떠 있는 도구 줄과 패널: 얇은 테두리에 아주 옅은 그림자만(두 캔버스가 같은 모양) */
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
   --topbar-h: 48px;
   /*

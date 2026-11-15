@@ -1,0 +1,173 @@
+# modelll: full description
+
+> modelll (https://modelll.app/) is a free, open-source, real-time ERD tool. Teams edit the same diagram together through a shared link with no sign-up, in both Chen notation and IE (crow's foot) notation, and AI assistants such as ChatGPT and Claude connect to it through a remote MCP server or the `modelll` command-line tool to create and edit diagrams while everyone watches. It also generates CREATE TABLE SQL for MySQL, PostgreSQL, and Oracle.
+
+This file is a factual summary for AI tools and search engines. The short version is at https://modelll.app/llms.txt.
+
+## Key facts
+
+- Name: modelll (all lowercase; the three l's stand for the three stages of database modeling: conceptual, logical, physical)
+- URL: https://modelll.app/
+- Price: free. No account or sign-up.
+- Platform: web browser (needs JavaScript). Nothing to install.
+- Source code: https://github.com/heyoonyoon/modelll (MIT license). Can be self-hosted.
+- CLI: https://www.npmjs.com/package/modelll (`npx -y modelll`)
+- Remote MCP server: https://modelll.app/mcp (Streamable HTTP, no sign-in)
+- Interface languages (10): English, Korean, Japanese, Simplified Chinese, Traditional Chinese, Spanish, French, German, Brazilian Portuguese, Vietnamese
+- Made by a student developer in Korea, originally for university database courses that teach Chen notation.
+
+## What it does
+
+### 1. Conceptual design: Chen-notation ER diagram
+
+- Draw entities, relationships, and attributes on a shared canvas. Everyone with the room link edits the same diagram in real time and sees each other's pointers and selections. Up to 15 people per room.
+- Chen notation as taught in database courses: entity type (rectangle), weak entity type (double rectangle), relationship type (diamond), identifying relationship type (double diamond), attribute (ellipse), key attribute (underlined), partial key (dashed underline), multivalued attribute (double ellipse), composite attribute, cardinality (1, M, N), partial and total participation (single and double lines), disjoint and overlapping specialization (a circle with d or o), recursive relationships with role names.
+- Notation checks list problems such as an entity without a key, a line without a cardinality, or a weak entity without an identifying relationship.
+- Export the diagram as PNG or SVG, copy it to the clipboard, or save a JSON backup.
+
+### 2. Logical design: relational model and IE diagram
+
+- Write the relational model yourself as text, one table per line, for example `Student (Student ID, Name, Dept code)`. Underline primary key columns (Cmd/Ctrl+U) and add a line `Foreign Key (Dept code) references Department (Dept code)` under the table for each foreign key. Without a column list, a foreign key refers to the primary key.
+- The relational model is drawn live as an IE (crow's foot) diagram: line ends for exactly one, one or many, zero or one, zero or many (and one or many with the minimum not set), identifying and non-identifying relationship lines, and tables with key, name, type, and NULL cells.
+- The IE diagram is editable: set column types, NOT NULL, and UNIQUE on it.
+- Nothing is converted from the ER diagram automatically, so the relational model stays exactly as you designed it.
+
+### 3. Physical design: SQL
+
+- Pick a DBMS and get CREATE TABLE statements for MySQL, PostgreSQL, or Oracle, with PRIMARY KEY, FOREIGN KEY, NOT NULL, and UNIQUE.
+- Types are never guessed. A foreign key column without its own type takes the type of the column it references; any other column without a type gets a placeholder and is flagged, so the SQL does not run until the types are set.
+- Copy the SQL or download it as a .sql file.
+
+## Using modelll with AI assistants
+
+A modelll diagram can be read and written as plain text without coordinates. The server lays out new shapes automatically and keeps the positions people have already arranged, and everyone who has the room open sees each change live.
+
+### Remote MCP server
+
+Add `https://modelll.app/mcp` as a remote MCP server or connector in a client that supports it, such as claude.ai, ChatGPT, or Cursor. It uses Streamable HTTP with no sign-in. In Claude Code:
+
+```sh
+claude mcp add --transport http modelll https://modelll.app/mcp
+```
+
+Tools:
+
+| Tool | What it does |
+| --- | --- |
+| create_diagram | Create a new diagram from text and return its URL |
+| read_diagram | Return an existing diagram as text |
+| update_diagram | Replace a diagram's content with the given full text |
+| validate_diagram | Check text for syntax and notation problems without saving |
+| diagram_syntax | Return the full text-format reference |
+| diagram_to_sql | Return the relational model people wrote for a diagram and CREATE TABLE statements for PostgreSQL, MySQL, or Oracle |
+| get_ie_diagram | Return a room's IE diagram as JSON: tables, columns with primary keys, types, NOT NULL, and UNIQUE, relationships (foreign keys), and table positions |
+| set_ie_diagram | Replace a room's whole IE diagram with an edited JSON document, checked first and applied in one live update |
+
+### Command-line tool (npm package `modelll`)
+
+For assistants that can run commands, such as Claude Code, Cursor, or Codex. Requires Node.js 20 or newer.
+
+```sh
+npx -y modelll syntax                     # print the text-format reference
+npx -y modelll new model.mdl              # create a room from a file and print its URL
+npx -y modelll pull <room> -o model.mdl   # save the room's diagram as text
+npx -y modelll push <room> model.mdl      # make the room match the file
+npx -y modelll validate model.mdl         # check a file without contacting a server
+npx -y modelll relational <room>          # print the relational model written in the room
+npx -y modelll sql <room> --dialect mysql # CREATE TABLE statements (postgresql, mysql, or oracle)
+npx -y modelll ie <room> --json           # print the IE diagram as a JSON document
+npx -y modelll ie push <room> ie.json     # replace the IE diagram with the JSON document
+```
+
+The IE diagram document lists tables with their columns (`pk`, `type`, `notNull`, `unique`) and optional `x`/`y` positions, and relationships as foreign keys (`child`, `columns`, `parent`, `parentColumns`). Identifying relationships and 1:1 cardinality follow from the primary-key and UNIQUE settings of the foreign-key columns. A document with a problem, such as an unknown table, a foreign key to a table without a primary key, or a type containing characters like `;` or `$$`, is rejected without changing the room.
+
+`<room>` is a room URL such as `https://modelll.app/r/abc123` or the bare id from it.
+
+Example prompt: "Run `npx -y modelll syntax` to read the text format, then create an ERD for a library loan system with `npx -y modelll new` and give me the room URL."
+
+### Import an existing ERD from an image
+
+An ERD from draw.io, ERDCloud, or another tool, or even a photo of a hand drawing, can be moved into modelll. Save it as an image, attach it to an AI assistant, and ask it to recreate the diagram with the modelll MCP server or CLI. The assistant reads the entities, relationships, attributes, and cardinalities and creates a new room.
+
+### Text format example
+
+```text
+title "Company"
+
+entity Employee {
+  id key                       # key attribute (underlined)
+  name { first, last }         # composite attribute
+  phone multi                  # multivalued attribute
+}
+entity Department { code key, name }
+entity Secretary { typing_speed }
+entity Engineer { field }
+weak entity Dependent { name partial }      # partial key of a weak entity
+
+relationship works_in (Employee N total, Department 1) { since }
+relationship manages (Employee 1 as boss, Employee N as report)
+identifying relationship has (Employee 1, Dependent N total)
+
+specialization Employee disjoint total { Secretary, Engineer }
+```
+
+## Notation glossary
+
+- Chen notation: Peter Chen's entity-relationship notation, common in database textbooks and courses. Entities are rectangles, relationships are diamonds, and attributes are ellipses.
+- Relational model: tables written as Name (column, ...), with primary keys underlined and foreign keys listed under each table.
+- IE notation (Information Engineering, crow's foot): tables as boxes and relationships as lines whose ends show minimum and maximum cardinality.
+
+## Good to know
+
+- A link is the room: anyone who has the room link can open and edit the diagram, so share it only with people you work with.
+- A diagram that nobody opens for 30 days is deleted automatically. Save a JSON backup of anything you want to keep.
+
+## Frequently asked questions
+
+### What is modelll?
+
+modelll is a free online database design tool that runs in the browser. It covers all three steps of database modeling in one place: a conceptual ER diagram in Chen notation, a logical relational model with a live IE (crow's foot) diagram, and physical CREATE TABLE SQL for MySQL, PostgreSQL, and Oracle. Your team edits the same diagram in real time, and AI assistants such as ChatGPT and Claude can create and edit it too.
+
+### Is modelll free? Do I need an account?
+
+Yes, it is free and there is no sign-up. Create a diagram, pick a name and a color when you enter, and start drawing. modelll is open source under the MIT license.
+
+### How do I draw an ER diagram together with my team in real time?
+
+Create a diagram and share its link. A link is the room: anyone who has it joins right away and edits the same canvas, with everyone’s pointers and selections shown live. Up to 15 people can be in one room.
+
+### Does it support Chen notation?
+
+Yes. Entities, weak entities, relationships, identifying relationships, attributes, key and partial key attributes, multivalued and composite attributes, cardinality, total and partial participation, and disjoint or overlapping specialization are all drawn in Chen notation. A checks list points out problems such as an entity without a key, a missing cardinality, or a weak entity without an identifying relationship.
+
+### Can I turn an ER diagram into SQL for MySQL, PostgreSQL, or Oracle?
+
+Yes, through the relational model. You write the relational model as text, such as Student (Student ID, Name, Dept code), underline primary keys, and add a Foreign Key line for each foreign key. modelll draws it live as an IE diagram, where you set column types, NOT NULL, and UNIQUE, and then generates CREATE TABLE statements for MySQL, PostgreSQL, or Oracle. Nothing is converted from the ER diagram behind your back, and types you have not set are flagged instead of guessed. Copy the SQL or download it as a .sql file.
+
+### Does it draw IE (crow’s foot) diagrams?
+
+Yes. The relational model you write is drawn as an IE diagram with crow’s foot line ends (exactly one, one or many, zero or one, zero or many) and identifying or non-identifying relationship lines. The IE diagram is editable: set each column’s type and NULL right on it.
+
+### Can ChatGPT or Claude create an ER diagram in modelll?
+
+Yes. A diagram can be read and written as plain text with no coordinates, so an AI assistant can add and change entities and relationships itself while everyone in the room watches the changes appear. Connect a chat assistant such as claude.ai, ChatGPT, or Cursor to the remote MCP server at https://modelll.app/mcp, or let an assistant that can run commands, such as Claude Code, Cursor, or Codex, use the command-line tool with npx -y modelll.
+
+### How do I connect the modelll MCP server?
+
+Add https://modelll.app/mcp as a remote MCP server or connector in a client that supports it. It uses Streamable HTTP with no sign-in and nothing to install. In Claude Code, run: claude mcp add --transport http modelll https://modelll.app/mcp. The server offers tools to create, read, update, and validate diagrams, print the text format, and return the relational model as SQL.
+
+### Can I import an existing ERD from draw.io, ERDCloud, or another tool?
+
+Yes, with an AI assistant. Save the ERD as an image (a screenshot, an exported PNG, or a photo of a hand drawing), attach it to your assistant with the prompt shown on the page, and it reads the entities, relationships, attributes, and cardinalities and redraws them in modelll.
+
+### How is modelll different from other ERD tools such as ERDCloud, draw.io, or dbdiagram.io?
+
+Many ERD tools draw only crow’s foot tables, and general drawing tools make you build Chen shapes such as double diamonds and dashed underlines by hand. modelll draws Chen notation as taught in database courses, keeps the conceptual ER diagram, the relational model, the IE diagram, and SQL side by side in one place, lets your team edit together through a link with no sign-up, and lets AI assistants edit the same diagram through MCP or a CLI.
+
+### How can I export or keep my diagram?
+
+Export the ER diagram as PNG or SVG, copy it to the clipboard, or save a JSON backup. A diagram that nobody opens for 30 days is deleted automatically, so save a JSON backup of anything you want to keep.
+
+### Which languages does the interface support?
+
+The interface is available in 10 languages: English, Korean, Japanese, Simplified Chinese, Traditional Chinese, Spanish, French, German, Brazilian Portuguese, and Vietnamese.

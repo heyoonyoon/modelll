@@ -1,5 +1,5 @@
 /**
- * 첫 화면의 이용 안내. 가입, 링크, 언어, 보관 기간을 아이콘이나 카드 없이 글로만 적는다.
+ * 첫 화면의 이용 안내. 가입, 링크, 오픈 소스, 보관 기간을 아이콘이나 카드 없이 글로만 적는다.
  */
 import { useId } from 'react';
 import { useT, type MessageKey } from '../i18n';
@@ -8,7 +8,7 @@ import { Reveal } from './motion';
 const FACTS: Array<{ id: string; title: MessageKey; body: MessageKey }> = [
   { id: 'signup', title: 'home.fact.signup.title', body: 'home.fact.signup.body' },
   { id: 'link', title: 'home.fact.link.title', body: 'home.fact.link.body' },
-  { id: 'languages', title: 'home.fact.languages.title', body: 'home.fact.languages.body' },
+  { id: 'opensource', title: 'home.fact.opensource.title', body: 'home.fact.opensource.body' },
   { id: 'expiry', title: 'home.fact.expiry.title', body: 'home.fact.expiry.body' },
 ];
 

@@ -1,6 +1,6 @@
 /**
  * 첫 화면의 AI 구역. AI에게 한 요청이 글로 쓴 모델을 거쳐 다이어그램이 되는 예시 그림과,
- * AI를 연결하는 두 가지 방법(CLI, MCP)을 복사할 수 있는 카드로 보여 준다. 어느 방법도 특정 AI 제품에 묶이지 않게 적는다.
+ * AI를 연결하는 두 가지 방법(CLI, MCP)을 복사할 수 있는 카드로 보여 준다. 그 아래에 사용 사례(기존 ERD 옮기기)를 따로 둔다. 어느 방법도 특정 AI 제품에 묶이지 않게 적는다.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { computeEdgeGeometry, diagramBounds, siblingInfo } from '../../shared/geometry';
@@ -10,6 +10,7 @@ import { EdgeShape } from '../canvas/EdgeShape';
 import { NodeShape } from '../canvas/NodeShape';
 import { useT, type MessageKey, type TFunction } from '../i18n';
 import { toast } from '../ui/toast';
+import { HomeMigrate } from './HomeMigrate';
 import { runMatrixRain } from './matrixRain';
 import { Reveal, canAnimate, useInView } from './motion';
 
@@ -297,14 +298,8 @@ export function HomeAi() {
         </Reveal>
       </div>
 
-      {/* 다른 도구에서 그린 ERD를 옮기는 법: 그림을 AI에 첨부하고 지시문을 붙이면 AI가 모델 글로 옮겨 방을 만든다 */}
-      <Reveal className="home-way home-migrate" data-testid="home-migrate">
-        <div className="home-migrate-text">
-          <h4 className="home-way-title">{t('home.ai.migrate.title')}</h4>
-          <p className="home-way-body">{t('home.ai.migrate.body')}</p>
-        </div>
-        <Snippet text={t('home.ai.migrate.prompt')} copyLabel={t('ai.cli.copy')} doneKey="toast.clipboardCopied" testId="home-migrate" />
-      </Reveal>
+      {/* 연결 방법과 따로 두는 사용 사례: 다른 도구의 ERD 그림을 AI가 modelll로 옮긴다 */}
+      <HomeMigrate />
     </section>
   );
 }

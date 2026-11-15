@@ -50,6 +50,9 @@ section { margin-top: 28px; }
 .chart .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .chart svg { display: block; width: 100%; height: auto; }
 .chart .total { font-size: 12px; color: var(--dim); }
+.chart .hit { cursor: default; }
+.chart .hit:hover { fill: rgba(13, 110, 253, 0.07); }
+#tip { position: fixed; z-index: 10; pointer-events: none; display: none; white-space: pre-line; background: #111827; color: #fff; font-size: 12px; line-height: 1.5; padding: 6px 9px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 10px; }
 .box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .box h3 { font-size: 13px; font-weight: 700; }
@@ -124,7 +127,7 @@ function card(label, value, desc, extra) {
   return '<div class="card' + (extra || '') + '"><div class="label">' + esc(label) + '</div><div class="value">' + value + '</div><div class="desc">' + esc(desc) + '</div></div>';
 }
 
-/** 막대그래프(여러 계열이면 쌓는다). 값과 날짜는 <title>로 */
+/** 막대그래프(여러 계열이면 쌓는다). 날짜와 값은 마우스를 올리면 뜨는 말풍선(data-tip)으로 */
 function bars(rows, series) {
   var W = 560, H = 150, L = 34, R = 6, T = 8, B = 20;
   var n = rows.length, max = 0;
@@ -146,7 +149,7 @@ function bars(rows, series) {
       base -= h;
       out += '<rect x="' + x.toFixed(1) + '" y="' + base.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1.5" fill="' + se.color + '"/>';
     });
-    out += '<rect x="' + (L + cw * i).toFixed(1) + '" y="' + T + '" width="' + cw.toFixed(1) + '" height="' + (H - T - B) + '" fill="transparent"><title>' + esc(r.day + '\n' + tip.join('\n')) + '</title></rect>';
+    out += '<rect x="' + (L + cw * i).toFixed(1) + '" y="' + T + '" width="' + cw.toFixed(1) + '" height="' + (H - T - B) + '" fill="transparent" class="hit" data-tip="' + esc(r.day + '\n' + tip.join('\n')) + '"></rect>';
   });
   var ticks = n <= 1 ? [0] : n <= 8 ? rows.map(function (_, i) { return i; }) : [0, Math.floor((n - 1) / 2), n - 1];
   ticks.forEach(function (i) {
@@ -366,6 +369,24 @@ document.querySelectorAll('#period button').forEach(function (b) {
 });
 loadAll();
 setInterval(refreshLive, 10000);
+
+// 막대에 마우스를 올리면 그날 값을 말풍선으로 보인다
+var tipEl = document.createElement('div');
+tipEl.id = 'tip';
+document.body.appendChild(tipEl);
+document.addEventListener('mousemove', function (ev) {
+  var t = ev.target;
+  var text = t && t.getAttribute ? t.getAttribute('data-tip') : null;
+  if (!text) { tipEl.style.display = 'none'; return; }
+  tipEl.textContent = text;
+  tipEl.style.display = 'block';
+  var w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  var x = ev.clientX + 12, y = ev.clientY - h - 10;
+  if (x + w > window.innerWidth - 8) x = ev.clientX - w - 12;
+  if (y < 8) y = ev.clientY + 16;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = y + 'px';
+});
 setInterval(loadAll, 5 * 60 * 1000);
 `;
 

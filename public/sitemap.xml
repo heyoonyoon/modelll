@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 검색에 나오는 주소는 첫 화면 하나다. 방 주소는 넣지 않는다 -->
+<!-- 검색에 나오는 주소는 첫 화면 하나다. 방 주소는 넣지 않는다. lastmod는 첫 화면의 내용이 크게 바뀐 날로 고친다 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://modelll.app/</loc>
+    <lastmod>2026-11-15</lastmod>
   </url>
 </urlset>

@@ -5,8 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 화면이 뜨면 제목은 언어와 화면에 맞게 바뀐다. 여기 적힌 값은 스크립트를 돌리지 않는 검색 로봇과 링크 미리보기가 읽는다 -->
-    <title>%APP_NAME% | Your team and AI, from ERD to SQL</title>
-    <meta name="description" content="%APP_NAME% is a free online tool for all three steps of database design: draw a Chen-notation ER diagram with your team, write the relational model with a live IE diagram, and generate SQL for MySQL, PostgreSQL, or Oracle." />
+    <!-- 제목과 설명, 구조화 데이터, #root 안의 글은 빌드할 때 src/client/pages/homeStatic.ts의 값이 들어간다 -->
+    <title>%PAGE_TITLE%</title>
+    <meta name="description" content="%PAGE_DESCRIPTION%" />
     <meta name="application-name" content="%APP_NAME%" />
     <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
     <meta name="theme-color" content="#ffffff" />
@@ -14,6 +15,10 @@
     <meta name="robots" content="max-image-preview:large" />
     <!-- 검색에 나오는 주소는 첫 화면 하나다 -->
     <link rel="canonical" href="https://modelll.app/" />
+    <!-- 언어마다 주소가 따로 없다. 한 주소가 브라우저 언어에 맞춰 바뀌므로 x-default 하나만 적는다 -->
+    <link rel="alternate" hreflang="x-default" href="https://modelll.app/" />
+    <!-- AI 도구가 읽는 요약(public/llms.txt) -->
+    <link rel="alternate" type="text/plain" href="https://modelll.app/llms.txt" title="llms.txt" />
 
     <!-- 아이콘. 그림 파일은 scripts/og/render.mjs로 만든다 -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -26,8 +31,8 @@
     <!-- 링크를 붙여 넣었을 때 보이는 미리보기 -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="%APP_NAME%" />
-    <meta property="og:title" content="%APP_NAME% | Your team and AI, from ERD to SQL" />
-    <meta property="og:description" content="Conceptual, logical, and physical database design in one place. Draw a Chen-notation ER diagram with your team, write the relational model, and generate SQL." />
+    <meta property="og:title" content="%PAGE_TITLE%" />
+    <meta property="og:description" content="%SHARE_DESCRIPTION%" />
     <meta property="og:url" content="https://modelll.app/" />
     <meta property="og:image" content="https://modelll.app/og.png" />
     <meta property="og:image:type" content="image/png" />
@@ -45,82 +50,34 @@
     <meta property="og:locale:alternate" content="pt_BR" />
     <meta property="og:locale:alternate" content="vi_VN" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="%APP_NAME% | Your team and AI, from ERD to SQL" />
-    <meta name="twitter:description" content="Conceptual, logical, and physical database design in one place. Draw a Chen-notation ER diagram with your team, write the relational model, and generate SQL." />
+    <meta name="twitter:title" content="%PAGE_TITLE%" />
+    <meta name="twitter:description" content="%SHARE_DESCRIPTION%" />
     <meta name="twitter:image" content="https://modelll.app/og.png" />
     <meta name="twitter:image:alt" content="%APP_NAME%: an ER diagram in Chen notation being drawn by two people at once" />
 
-    <!-- 구조화 데이터. WebSite의 name이 검색 결과에 사이트 이름으로 쓰인다 -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "@id": "https://modelll.app/#website",
-            "name": "%APP_NAME%",
-            "url": "https://modelll.app/",
-            "inLanguage": ["en", "ko", "ja", "zh-CN", "zh-TW", "es", "fr", "de", "pt-BR", "vi"]
-          },
-          {
-            "@type": "WebPage",
-            "@id": "https://modelll.app/#webpage",
-            "url": "https://modelll.app/",
-            "name": "%APP_NAME% | Your team and AI, from ERD to SQL",
-            "isPartOf": { "@id": "https://modelll.app/#website" },
-            "about": { "@id": "https://modelll.app/#app" },
-            "primaryImageOfPage": {
-              "@type": "ImageObject",
-              "url": "https://modelll.app/og.png",
-              "width": 1200,
-              "height": 630
-            }
-          },
-          {
-            "@type": "SoftwareApplication",
-            "@id": "https://modelll.app/#app",
-            "name": "%APP_NAME%",
-            "url": "https://modelll.app/",
-            "description": "A free tool for the three steps of database design. Draw a Chen-notation ER diagram with your team in real time (conceptual), write the relational model and see it as an IE diagram (logical), and generate CREATE TABLE SQL for MySQL, PostgreSQL, or Oracle (physical). AI assistants can create and edit the same diagram as text.",
-            "featureList": [
-              "Real-time collaboration with shared cursors and selections, up to 15 people per room",
-              "Chen notation shapes, including weak entities, identifying relationships, multivalued and composite attributes, and specialization",
-              "Notation checks for missing keys, missing cardinalities, and weak entities without an identifying relationship",
-              "AI assistants such as Claude and ChatGPT can create and edit diagrams as text through a command-line tool or an MCP server",
-              "Relational model written in plain text, with underlined primary keys and Foreign Key lines, drawn live as an IE (crow's foot) diagram",
-              "CREATE TABLE SQL for MySQL, PostgreSQL, and Oracle from the types, NOT NULL, and UNIQUE you set, without guessing unset types",
-              "Resizable side by side views for the ER diagram, relational model, IE diagram, and SQL",
-              "Export to PNG, SVG, the clipboard, and JSON",
-              "No sign-up, and the interface is available in 10 languages"
-            ],
-            "applicationCategory": "DesignApplication",
-            "operatingSystem": "Web",
-            "browserRequirements": "Requires JavaScript and a modern browser",
-            "isAccessibleForFree": true,
-            "image": "https://modelll.app/og.png",
-            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-          }
-        ]
-      }
-    </script>
+    <!-- 구조화 데이터(WebSite, Organization, WebPage, WebApplication, SoftwareSourceCode, FAQPage). WebSite의 name이 검색 결과에 사이트 이름으로 쓰인다 -->
+    <!--%STRUCTURED_DATA%-->
 
+    <!-- #root 안의 글(homeStatic.ts)은 스크립트를 돌리지 않는 로봇과 브라우저를 위한 것이다. 스크립트가 켜져 있으면 숨겨 두었다가
+         React가 #root를 그리면서 지우므로 화면이 뜨기 전에 비치지 않는다. 스크립트가 꺼져 있으면 아래 noscript가 다시 보이게 한다 -->
+    <style>#root > .home-static { display: none; }</style>
+    <noscript>
+      <style>
+        #root > .home-static { display: block; max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; font-size: 16px; line-height: 1.6; color: #171717; }
+        .home-static h1 { font-size: 30px; line-height: 1.25; margin: 24px 0 16px; }
+        .home-static h2 { font-size: 22px; margin: 40px 0 12px; }
+        .home-static h3 { font-size: 17px; margin: 24px 0 6px; }
+        .home-static h4 { font-size: 15px; margin: 16px 0 4px; }
+        .home-static p, .home-static ul, .home-static ol { margin: 0 0 12px; }
+        .home-static pre { white-space: pre-wrap; background: #f5f5f5; padding: 12px; border-radius: 8px; font-size: 14px; }
+        html #root { height: auto; }
+      </style>
+    </noscript>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   </head>
   <body>
-    <!-- 스크립트를 돌리지 않는 곳에서만 보이는 글. 스크립트가 켜져 있으면 그려지지 않으므로 화면이 뜨기 전에 비치지 않는다. #root가 화면 높이를 다 쓰므로 그 앞에 둔다 -->
-    <noscript>
-      <main style="max-width: 640px; margin: 18vh auto 0; padding: 0 24px; font-size: 16px; line-height: 1.6; color: #171717">
-        <h1 style="font-size: 28px; line-height: 1.25">%APP_NAME%: database design from ER diagram to SQL</h1>
-        <p>
-          %APP_NAME% is a free online tool for the three steps of database design: conceptual, logical, and physical. Share a link and your teammates
-          join right away to draw a Chen-notation ER diagram on the same canvas, write the relational model with a live IE diagram, and generate SQL
-          for MySQL, PostgreSQL, or Oracle. An AI assistant such as Claude or ChatGPT can also create and edit the diagram as text while everyone
-          watches the changes appear. Please turn on JavaScript to use it.
-        </p>
-      </main>
-    </noscript>
-    <div id="root"></div>
+    <div id="root"><!--%HOME_STATIC%--></div>
     <script type="module" src="/src/client/main.tsx"></script>
   </body>
 </html>

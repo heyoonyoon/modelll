@@ -1,8 +1,8 @@
 /**
  * 캔버스 조작에 쓰는 순수 계산. DOM과 store를 건드리지 않는다. [담당: canvas 에이전트]
  */
-import { anchorPoint, nearestSide, nodeRect, pointInNode, rectsIntersect, sideDirection } from '../../../shared/geometry';
-import { CARDINALITY_OPTIONS, MIN_NODE_SIZE, SIDES, type ErdEdge, type ErdNode, type Point, type Rect, type Side } from '../../../shared/types';
+import { anchorPoint, cornerPoint, nearestSide, nodeRect, pointInNode, rectsIntersect, sideDirection } from '../../../shared/geometry';
+import { CARDINALITY_OPTIONS, CORNERS, MIN_NODE_SIZE, SIDES, isAnchor as isAnchorValue, type Anchor, type Corner, type ErdEdge, type ErdNode, type Point, type Rect, type Side } from '../../../shared/types';
 
 /** 드래그로 인정하는 최소 이동 거리(화면 px) */
 export const DRAG_THRESHOLD = 3;
@@ -107,12 +107,28 @@ export function isSide(v: unknown): v is Side {
   return typeof v === 'string' && (SIDES as readonly string[]).includes(v);
 }
 
+/** 선이 붙는 자리(네 면과 그 사이 넷)인지 */
+export function isAnchor(v: unknown): v is Anchor {
+  return isAnchorValue(v);
+}
+
 /** 도형 상하좌우 고정점의 바로 바깥에 띄우는 연결 점의 중심. offset은 월드 단위. */
 export function connectDotPoints(node: ErdNode, offset: number): Array<{ side: Side; x: number; y: number }> {
   return SIDES.map((side) => {
     const a = anchorPoint(node, side);
     const d = sideDirection(side);
     return { side, x: a.x + d.x * offset, y: a.y + d.y * offset };
+  });
+}
+
+/**
+ * 네 면 사이의 연결 점 넷(월드 좌표, offset만큼 도형 바깥). 사각형은 모서리, 마름모는 네 변의 가운데,
+ * 타원과 원은 45도 자리다. 이 자리도 선이 붙는 자리(Anchor)라서 여기서 끈 선은 그 자리에 붙는다.
+ */
+export function connectDiagonalPoints(node: ErdNode, offset: number): Array<{ side: Corner; x: number; y: number }> {
+  return CORNERS.map((side) => {
+    const { p, dir } = cornerPoint(node, side);
+    return { side, x: p.x + dir.x * offset, y: p.y + dir.y * offset };
   });
 }
 
@@ -141,21 +157,19 @@ export function nextCardinality(label: string): string {
 // ───────────────────────── 선이 붙는 면 ─────────────────────────
 
 /**
- * 이 두 도형을 잇는 선에 붙는 면을 저장할지. 엔티티와 관계, 엔티티와 특수화 원 사이의 선만 저장한다.
- * 속성이 낀 선은 면 없이 비스듬한 직선으로 둔다.
+ * 이 두 도형을 잇는 선에 붙는 자리를 저장할지. (바뀜) 연결 점 여덟 곳이 모두 실제로 붙는 자리라서,
+ * 사람이 점을 골라 이었거나 끝점을 점에 놓았으면 어떤 짝이든 그 자리를 저장한다(메모는 선을 잇지 않는다).
  */
 export function shouldStoreSides(source: ErdNode, target: ErdNode): boolean {
-  const pair = (a: ErdNode['kind'], b: ErdNode['kind']) =>
-    (source.kind === a && target.kind === b) || (source.kind === b && target.kind === a);
-  return pair('entity', 'relationship') || pair('entity', 'spec');
+  return source.kind !== 'note' && target.kind !== 'note';
 }
 
 /** 새 선에 넣을 면 필드. 저장 조건에 맞지 않거나 면이 정해지지 않은 끝은 넣지 않는다(자동). */
 export function edgeSideProps(
   source: ErdNode,
   target: ErdNode,
-  sourceSide: Side | null | undefined,
-  targetSide: Side | null | undefined,
+  sourceSide: Anchor | null | undefined,
+  targetSide: Anchor | null | undefined,
 ): Pick<ErdEdge, 'sourceSide' | 'targetSide'> {
   const out: Pick<ErdEdge, 'sourceSide' | 'targetSide'> = {};
   if (!shouldStoreSides(source, target)) return out;
@@ -173,7 +187,7 @@ export function pickConnectTarget(
   p: Point,
   excludeId: string | undefined,
   snapDist: number,
-): { node: ErdNode; side: Side | null } | null {
+): { node: ErdNode; side: Anchor | null } | null {
   const inside = topNodeAt(nodes, p, excludeId);
   if (inside) return { node: inside, side: nearestSide(inside, p, snapDist) };
   for (let i = nodes.length - 1; i >= 0; i--) {
@@ -187,7 +201,7 @@ export function pickConnectTarget(
 
 export type EndDrop =
   /** 고정점에 붙인다 */
-  | { kind: 'side'; side: Side }
+  | { kind: 'side'; side: Anchor }
   /** 면 지정을 지워 자동으로 되돌린다 */
   | { kind: 'auto' }
   /** 아무것도 바꾸지 않는다 */

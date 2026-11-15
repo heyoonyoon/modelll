@@ -142,6 +142,15 @@ export interface IeLayout {
   height: number;
 }
 
+/** (추가) 사람이 옮겨 놓은 IE 상자의 왼쪽 위 자리(월드 좌표, px) */
+export interface IePoint {
+  x: number;
+  y: number;
+}
+
+/** (추가) 사람이 옮겨 놓은 IE 상자 자리. 키는 nameKey(테이블 이름) */
+export type IePositions = Record<string, IePoint>;
+
 export type SqlDialect = 'mysql' | 'postgresql' | 'oracle';
 
 export interface SqlResult {
@@ -187,6 +196,10 @@ export interface SqlOptions {
  *       IE에서 고친 이름과 기본키를 글에 되써 넣는다(글이 원본). 글에 오류가 있으면 고치지 않는다
  *   ieColumnGrid(table, width?), ieSectionHeight(rows)   IE 상자의 네 칸(키 | 이름 | 타입 | NULL) 폭과 묶음 높이(그림과 배치가 같은 값을 쓴다)
  *   getColumnSettingsMap, RELATIONAL_TEXT, RELATIONAL_COLUMNS
+ *   (structure.ts) planAddTable, planDeleteTable, planAddColumn, planDeleteColumn, planAddRelationship, planDeleteRelationship
+ *       IE에서 테이블, 컬럼, 관계를 더하고 지운다(글에 써 넣는다). 더하는 계획은 고른 이름을 함께 돌려준다
+ *   readIePositions, setIePosition, deleteIePosition (doc.getMap('ie-positions'))   사람이 옮겨 놓은 IE 상자 자리
+ *   layoutIe(model, positions?)   옮겨 놓은 자리가 있으면 그 자리에, 나머지는 자동 배치(겹치면 아래로)
  *   RelProblem.endColumn은 밑줄 끝 바로 다음 칸이다(끝을 포함하지 않는다)
  */
 

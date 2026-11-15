@@ -7,7 +7,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type * as Y from 'yjs';
 import { computeEdgeGeometry, diagramBounds, siblingInfo, unionBounds } from '../../shared/geometry';
-import { STYLE, type ErdEdge, type ErdFile, type ErdNode, type NodeKind, type Point, type Rect } from '../../shared/types';
+import { STYLE, isAnchor, type ErdEdge, type ErdFile, type ErdNode, type NodeKind, type Point, type Rect } from '../../shared/types';
 import { DiagramContent } from '../canvas/DiagramContent';
 import { addEdges, addNodes, getEdges, getNodes, getTitle, newId, replaceAll, setTitle, transact } from '../collab/docOps';
 import { t } from '../i18n';
@@ -501,8 +501,9 @@ function parseEdge(raw: unknown, index: number, seen: Set<string>, nodeIds: Set<
   return edge;
 }
 
+/** 선이 붙는 자리(네 면과 그 사이 넷). 예전 파일의 네 면 값도 그대로 읽는다 */
 function isSideValue(v: unknown): v is NonNullable<ErdEdge['sourceSide']> {
-  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
+  return isAnchor(v);
 }
 
 /** 텍스트를 ErdFile로 해석하고 검사한다. 형식이 틀리면 현재 언어로 된 메시지와 함께 Error를 던진다. */

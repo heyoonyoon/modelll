@@ -4,7 +4,7 @@
  * 화면에 들어오면 줄마다 도형의 선이 그려지고 글은 한 줄씩 나타난다(탭을 바꾸면 새 묶음이 다시 그려진다).
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
-import { ieColumnGrid, ieSectionHeight, IE_BOX } from '../../shared/relational/layout';
+import { ieColumnGrid, ieOtherSectionHeight, ieSectionHeight, IE_BOX } from '../../shared/relational/layout';
 import { dialectType, quoteIdentifier, TYPE_PLACEHOLDER } from '../../shared/relational/sql';
 import { formatName } from '../../shared/relational/text';
 import type { IeColumn, IeEnd, IeTable, SqlDialect } from '../../shared/relational/userSchema';
@@ -83,7 +83,7 @@ function ieTableBox(table: IeTable): { figure: ReactNode; w: number; h: number }
   const g = ieColumnGrid(table);
   const pkCols = table.columns.filter((c) => c.primaryKey);
   const otherCols = table.columns.filter((c) => !c.primaryKey);
-  const h = head + ieSectionHeight(pkCols.length) + ieSectionHeight(otherCols.length);
+  const h = head + ieSectionHeight(pkCols.length) + ieOtherSectionHeight(otherCols.length);
   const x0 = 1;
   const y0 = 1;
   const X = { key: x0, name: x0 + g.key, type: x0 + g.key + g.name, nullable: x0 + g.key + g.name + g.type };
@@ -130,7 +130,7 @@ function ieTableBox(table: IeTable): { figure: ReactNode; w: number; h: number }
       ))}
       <line className="home-ie-line" x1={x0} x2={x0 + g.w} y1={y0 + head} y2={y0 + head} />
       {pkCols.map((c, i) => rowEl(c, y0 + head + i * row, i === pkCols.length - 1))}
-      <line className="home-ie-line" x1={x0} x2={x0 + g.w} y1={dividerY} y2={dividerY} />
+      {otherCols.length > 0 && <line className="home-ie-line" x1={x0} x2={x0 + g.w} y1={dividerY} y2={dividerY} />}
       {otherCols.map((c, i) => rowEl(c, dividerY + i * row, i === otherCols.length - 1))}
     </g>
   );

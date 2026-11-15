@@ -118,6 +118,10 @@
   :root:not(:lang(ko), :lang(ja), :lang(zh-CN), :lang(zh-TW)) .topbar-btn { padding: 0 8px; }
 }
 
+/* DBMS 고르기는 값(MySQL 등)만 남기고 'DBMS' 글자를 먼저 숨긴다 */
+@media (max-width: 1200px) {
+  .topbar-dialect .dialect-select-label { display: none; }
+}
 /* 좁은 창: 버튼 글자를 숨기고 아이콘만 남긴다 */
 @media (max-width: 900px) {
   .topbar { gap: 6px; padding: 0 6px; }
@@ -127,6 +131,7 @@
   .topbar-home { padding: 0 6px; }
   .topbar-title { max-width: 220px; }
   .topbar-language .language-select-value, .topbar-language .language-select-chevron { display: none; }
+  .topbar-dialect .dialect-select-button { padding: 0 6px; }
 }
 @media (max-width: 640px) {
   .topbar-status-label { display: none; }

@@ -7,7 +7,8 @@ import { parseMarkup } from '../shared/relational/text';
 import type { Model } from '../shared/model/types';
 import { validateDiagram } from '../shared/rules';
 import type { Issue } from '../shared/types';
-import { fetchModel, fetchRelational, sendModel, sendRelational, type FetchLike, type PushResult } from './api';
+import { fetchIe, fetchModel, fetchRelational, sendIe, sendModel, sendRelational, type FetchLike, type PushResult } from './api';
+import { planIeDocument, type IeDocument } from '../shared/relational/ieDocument';
 import { COMMANDS, type CliOptions } from './args';
 import { CliError } from './errors';
 import { formatSummary, formatSyntaxError, issueText, pickLang, problemText, reportLines, type Lang } from './format';
@@ -178,6 +179,80 @@ export async function runSql(io: CliIo, args: string[], options: CliOptions): Pr
   io.out(text.replace(/\n+$/, ''));
   if (errors > 0) io.err(`warning: the relational model has ${errors} error${errors === 1 ? '' : 's'}; only the parts that could be read were converted`);
   if (missingTypes > 0) io.err(`warning: ${missingTypes} column${missingTypes === 1 ? ' has' : 's have'} no type; set the types in the app (the SQL marks them and will not run as is)`);
+  return 0;
+}
+
+/**
+ * (추가) 방의 IE 그림. 'ie <room>'은 읽기 쉬운 글로, --json이면 고쳐서 다시 보낼 수 있는 JSON 문서로 낸다.
+ * 'ie push <room> <file|->'는 JSON 문서로 방의 IE 그림(관계 모델 글, 컬럼 설정, 상자 자리)을 통째로 바꾼다. 보내기 전에 같은 검사를 한다.
+ */
+export async function runIe(io: CliIo, args: string[], options: CliOptions): Promise<number> {
+  if (args.length === 3 && args[0] === 'push') return runIePush(io, args[1], args[2], options);
+  if (args.length !== 1) throw new CliError(`usage: ${COMMANDS.ie.usage}`, 2);
+  const ref = parseRoomRef(args[0], resolveServer(options.server, io.env));
+  const body = await fetchIe(io.fetch, ref);
+  if (options.json) {
+    printJson(io, body);
+    return 0;
+  }
+  const doc = body as unknown as IeDocument & { problems?: Array<{ severity: string; line: number; column: number; message: string }> };
+  const tables = Array.isArray(doc.tables) ? doc.tables : [];
+  const relationships = Array.isArray(doc.relationships) ? doc.relationships : [];
+  if (tables.length === 0) {
+    io.err(`${roomUrl(ref)} has no tables yet (people draw them in the app, or use "modelll ie push")`);
+    return 0;
+  }
+  const lines: string[] = [];
+  for (const t of tables) {
+    lines.push(`${t.name}${typeof t.x === 'number' && typeof t.y === 'number' ? `  (at ${t.x}, ${t.y})` : ''}`);
+    for (const c of t.columns ?? []) {
+      const key = [c.pk ? 'PK' : '', c.fk ? 'FK' : ''].filter(Boolean).join(',');
+      const type = c.type ?? (c.inheritedType ? `(${c.inheritedType})` : '-');
+      const nul = c.pk || c.notNull === true ? 'NOT NULL' : c.notNull === false ? 'NULL' : '';
+      lines.push(`  ${key.padEnd(5)} ${c.name}  ${[type, nul, c.unique ? 'UNIQUE' : ''].filter(Boolean).join(' ')}`);
+    }
+  }
+  if (relationships.length > 0) {
+    lines.push('', 'Relationships (child -> parent):');
+    for (const r of relationships) {
+      const kind = r.identifying === undefined ? 'unresolved' : `${r.identifying ? 'identifying' : 'non-identifying'} ${r.cardinality}`;
+      lines.push(`  ${r.child} (${r.columns.join(', ')}) -> ${r.parent}${r.parentColumns ? ` (${r.parentColumns.join(', ')})` : ''}  ${kind}`);
+    }
+  }
+  if (doc.dialect) lines.push('', `DBMS: ${doc.dialect}`);
+  io.out(lines.join('\n'));
+  for (const p of doc.problems ?? []) io.err(`${p.severity}: relational model ${p.line}:${p.column}: ${p.message}`);
+  return 0;
+}
+
+async function runIePush(io: CliIo, room: string, file: string, options: CliOptions): Promise<number> {
+  const ref = parseRoomRef(room, resolveServer(options.server, io.env));
+  const text = (await io.readText(file)).replace(/^\uFEFF/, '');
+  let input: unknown;
+  try {
+    input = JSON.parse(text);
+  } catch (err) {
+    io.err(`${file}: error: not valid JSON (${(err as Error).message})`);
+    if (options.json) printJson(io, { ok: false, error: 'bad-request', message: 'not valid JSON' });
+    return 1;
+  }
+  // 틀린 문서는 보내기 전에 모두 알린다(서버도 같은 검사를 한다)
+  const plan = planIeDocument(input);
+  if (!plan.ok) {
+    for (const e of plan.errors) io.err(`${file}: error: ${e}`);
+    if (options.json) printJson(io, { ok: false, error: 'invalid', errors: plan.errors });
+    return 1;
+  }
+  const result = await sendIe(io.fetch, ref, JSON.stringify(input));
+  if (options.json) {
+    printJson(io, { ...result, url: roomUrl(ref) });
+    return 0;
+  }
+  const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
+  io.out(
+    `${result.changed ? 'Updated the IE diagram of' : 'No changes to the IE diagram of'} ${roomUrl(ref)} (${n(result.tables, 'table')}, ${n(result.columns, 'column')}, ${n(result.relationships, 'relationship')})`,
+  );
+  for (const w of result.warnings ?? []) io.out(`warning: ${w}`);
   return 0;
 }
 

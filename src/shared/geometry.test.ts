@@ -1015,3 +1015,33 @@ describe('면이 지정된 엔티티 변에서의 미끄러짐', () => {
     expect(flipped.points).toEqual([...a.points].reverse());
   });
 });
+
+describe('(추가) 면 사이 붙는 자리', () => {
+  const ent = node('e', 'entity', 0, 0, 100, 60);
+  const rel = node('r', 'relationship', 300, 0, 140, 80);
+  const att = node('a', 'attribute', 0, 300, 120, 60);
+
+  it('직사각형은 모서리, 마름모는 변 가운데, 타원은 45도 자리다', () => {
+    expect(anchorPoint(ent, 'top-right')).toEqual({ x: 100, y: 0 });
+    expect(anchorPoint(ent, 'bottom-left')).toEqual({ x: 0, y: 60 });
+    expect(anchorPoint(rel, 'top-left')).toEqual({ x: 335, y: 20 });
+    const p = anchorPoint(att, 'bottom-right');
+    expectPoint(p, 60 + 60 * Math.SQRT1_2, 330 + 30 * Math.SQRT1_2);
+  });
+
+  it('nearestSide는 여덟 자리 중 가장 가까운 곳을 고른다(예전 네 면 값도 그대로)', () => {
+    expect(nearestSide(ent, { x: 98, y: 2 }, 10)).toBe('top-right');
+    expect(nearestSide(ent, { x: 50, y: -3 }, 10)).toBe('top');
+    expect(nearestSide(ent, { x: 50, y: 30 }, 10)).toBeNull();
+  });
+
+  it('한쪽 끝이 면 사이 자리면 꺾지 않고 그 자리에서 곧게 잇는다(꺾은선을 골랐어도)', () => {
+    const g = computeEdgeGeometry(elbow('x', 'e', 'r', { sourceSide: 'top-right', targetSide: 'left' }), ent, rel);
+    expect(g.points).toEqual([anchorPoint(ent, 'top-right'), anchorPoint(rel, 'left')]);
+    expect(g.sourceSide).toBe('top-right');
+    expect(allFinite(g)).toBe(true);
+    const h = computeEdgeGeometry(edge('y', 'e', 'r', { targetSide: 'bottom-left' }), ent, rel);
+    expect(h.end).toEqual(anchorPoint(rel, 'bottom-left'));
+    expect(allFinite(h)).toBe(true);
+  });
+});

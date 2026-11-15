@@ -6,7 +6,7 @@
 
 **팀과 AI가 한 캔버스에서 함께 그리는 Chen 표기법 ERD**
 
-Collaborative Chen-notation ER diagrams that your team and your AI assistant draw together.
+A free online ER diagram tool, from Chen-notation ERD to relational model to SQL, that your team and your AI assistant draw together.
 
 <br />
 
@@ -27,6 +27,19 @@ Collaborative Chen-notation ER diagrams that your team and your AI assistant dra
 </a>
 
 <br />
+
+## In English
+
+**[modelll](https://modelll.app)** is a free, open-source online ER diagram tool for database design. It covers all three steps of database modeling in one place, and your team and your AI assistant work on the same diagram in real time.
+
+- **Conceptual: Chen-notation ER diagrams.** Entities, weak entities, relationships, identifying relationships, key and partial key attributes, multivalued and composite attributes, cardinality, total participation, and specialization, with notation checks.
+- **Logical: relational model and IE diagram.** Write the relational model as text with underlined primary keys and Foreign Key lines, and see it drawn live as an editable IE (crow's foot) diagram.
+- **Physical: SQL.** Generate CREATE TABLE statements for MySQL, PostgreSQL, or Oracle. Types you have not set are flagged, never guessed.
+- **Real-time collaboration.** Share a link and edit together, up to 15 people per room. No sign-up.
+- **AI assistants.** ChatGPT, Claude, Cursor, and others can create and edit diagrams through the remote MCP server `https://modelll.app/mcp` or the [`modelll` CLI](https://www.npmjs.com/package/modelll) (`npx -y modelll`). An existing ERD (a draw.io or ERDCloud screenshot, or a hand drawing) can be moved over from an image.
+- **Export** to PNG, SVG, or JSON. The interface is available in 10 languages.
+
+Start at **https://modelll.app**.
 
 ## 소개
 
@@ -73,6 +86,8 @@ AI를 연결하는 방법은 두 가지입니다.
 |---|---|
 | **CLI** | Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI는 `npx -y modelll` 명령으로 다이어그램을 만들고 읽고 고칩니다. |
 | **MCP** | claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구에는 `https://modelll.app/mcp` 주소를 추가합니다. 설치할 것이 없습니다. |
+
+AI는 관계 모델과 IE 그림도 그립니다. 테이블, 컬럼, 기본키, 외래키(식별·비식별 관계), 컬럼 타입, NULL 허용 여부, UNIQUE, 테이블 자리를 JSON 문서 하나로 읽고 통째로 바꿉니다(MCP `get_ie_diagram`·`set_ie_diagram`, CLI `modelll ie <방>`·`modelll ie push <방> <파일>`). 문서에 틀린 곳이 있으면 방을 건드리지 않고 문제를 모두 알려 줍니다.
 
 방 화면의 **AI로 편집** 버튼을 누르면 그 방의 주소가 들어간 지시문과 MCP 주소를 바로 복사할 수 있습니다.
 

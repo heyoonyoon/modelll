@@ -16,6 +16,7 @@ import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from 'rea
 import { useUi } from '../state/ui';
 import { HelpOverlay } from '../ui/HelpOverlay';
 import { Inspector } from '../ui/Inspector';
+import { DiagramInfo } from '../ui/DiagramInfo';
 import { IssuesPanel } from '../ui/IssuesPanel';
 import { Legend } from '../ui/Legend';
 import { Toolbar } from '../ui/Toolbar';
@@ -69,8 +70,8 @@ export function ErdPane() {
         <Toolbar />
       </div>
       <div className="erd-slot erd-slot-right">
-        {hasSelection && <Inspector />}
-        {panels.issues && <IssuesPanel />}
+        {hasSelection ? <Inspector /> : <DiagramInfo />}
+        {hasSelection && panels.issues && <IssuesPanel />}
         {panels.legend && <Legend />}
       </div>
       <div className="erd-slot erd-slot-bottom-left">

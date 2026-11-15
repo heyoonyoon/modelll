@@ -23,6 +23,7 @@ import { diagramToText, parseModel } from '../shared/model';
 import type { Model } from '../shared/model/types';
 import { toMarkup } from '../shared/relational/markup';
 import { readColumnSettings, readRelationalSource, readRoomDialect } from '../shared/relational/ydoc';
+import { applyIeDocument, readIeDocument } from '../shared/relational/ieDocument';
 import { getEdges, getNodes, getTitle } from '../shared/ydoc';
 import { clientIp, isPrivateAddress } from './limits';
 import { MAX_MODEL_BYTES, MAX_NODES, modelNodeCount, writeModel, type WithDoc } from './model';
@@ -44,6 +45,8 @@ export interface McpDeps {
   metrics?: {
     mcpCall(tool: string): void;
     aiRoom(roomId: string, kind: 'create' | 'modify'): void;
+    /** (추가) AI가 관계 모델 글을 썼다(set_ie_diagram) */
+    relationalWritten?(roomId: string): void;
   };
 }
 
@@ -190,6 +193,24 @@ function hubBackend(deps: McpDeps, call: McpCall): DiagramBackend {
           dialect: readRoomDialect(doc),
         }));
         return { url: `${call.origin}/r/${roomId}`, ...snapshot };
+      }),
+
+    ieRead: (room) =>
+      attempt(async () => {
+        const roomId = await existing(room);
+        const out = await deps.withDoc(roomId, (doc) => ({ title: getTitle(doc), ...readIeDocument(doc) }));
+        return { url: `${call.origin}/r/${roomId}`, ...out };
+      }),
+
+    ieWrite: (room, plan) =>
+      attempt(async () => {
+        const roomId = await existing(room);
+        const changed = await deps.withDoc(roomId, (doc) => applyIeDocument(doc, plan, 'api'));
+        if (changed) {
+          deps.metrics?.aiRoom(roomId, 'modify');
+          if (plan.counts.tables > 0) deps.metrics?.relationalWritten?.(roomId);
+        }
+        return { url: `${call.origin}/r/${roomId}`, changed };
       }),
   };
 }

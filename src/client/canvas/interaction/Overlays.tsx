@@ -4,7 +4,7 @@
  */
 import { memo, useMemo, type ReactNode } from 'react';
 import { anchorPoint, boundaryPoint, computeEdgeGeometry, nodeCenter, nodeRect, siblingInfo, unionBounds } from '../../../shared/geometry';
-import { NODE_PRESETS, SIDES, STYLE, presetOfTool, type ErdNode, type NodePreset, type Point, type Rect, type Side } from '../../../shared/types';
+import { ANCHORS, NODE_PRESETS, STYLE, presetOfTool, type Anchor, type ErdNode, type NodePreset, type Point, type Rect } from '../../../shared/types';
 import { presetPlacement } from '../../collab/docOps';
 import { useEdges, useNodeMap, useNodes, useSynced } from '../../collab/hooks';
 import { useT } from '../../i18n';
@@ -18,6 +18,7 @@ import {
   HANDLE_CURSOR,
   HANDLE_SIZE,
   SIDE_HANDLES,
+  connectDiagonalPoints,
   connectDotPoints,
   handlePoint,
   type Handle,
@@ -60,10 +61,10 @@ function ResizeHandles({ node, zoom }: { node: ErdNode; zoom: number }) {
 }
 
 /** 도형의 고정점 4개(변 가운데, 마름모 꼭짓점). active인 면은 달라붙은 것으로 강조한다. */
-function AnchorDots({ node, zoom, active }: { node: ErdNode; zoom: number; active: Side | null }) {
+function AnchorDots({ node, zoom, active }: { node: ErdNode; zoom: number; active: Anchor | null }) {
   return (
     <g pointerEvents="none">
-      {SIDES.map((side) => {
+      {ANCHORS.map((side) => {
         const a = anchorPoint(node, side);
         const on = side === active;
         return (
@@ -83,7 +84,8 @@ function AnchorDots({ node, zoom, active }: { node: ErdNode; zoom: number; activ
 
 function ConnectDots({ node, zoom }: { node: ErdNode; zoom: number }) {
   // 고정점(마름모는 꼭짓점) 바로 바깥에 놓는다
-  const dots = connectDotPoints(node, CONNECT_DOT_OFFSET / zoom);
+  // 상하좌우 고정점 바깥에 넷, 그 사이(모서리, 마름모 변 가운데, 타원 45도)에 넷. 끈 점의 자리에 선이 붙는다
+  const dots = [...connectDotPoints(node, CONNECT_DOT_OFFSET / zoom), ...connectDiagonalPoints(node, CONNECT_DOT_OFFSET / zoom)];
   return (
     <g>
       {dots.map((d) => (
@@ -223,6 +225,7 @@ export const ConnectDraftLayer = memo(function ConnectDraftLayer() {
  * 가까운 고정점에 달라붙는다(놓았을 때의 처리는 edgeEndGesture).
  */
 export const EdgeEndsLayer = memo(function EdgeEndsLayer() {
+  const t = useT();
   const selection = useUi((s) => s.selection);
   const zoom = useUi((s) => s.viewport.zoom);
   const tool = useUi((s) => s.tool);
@@ -264,6 +267,7 @@ export const EdgeEndsLayer = memo(function EdgeEndsLayer() {
           data-edge-end={end}
           data-edge-end-of={edge.id}
         >
+          <title>{t('canvas.edgeEnd.title')}</title>
           <circle className="canvas-edge-end-hit" cx={p.x} cy={p.y} r={r + 4 / zoom} />
           <circle className="canvas-edge-end-mark" cx={p.x} cy={p.y} r={r} />
         </g>

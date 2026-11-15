@@ -3,10 +3,12 @@
  * 줄 번호 칸에 문제가 있는 줄을 빨간색(오류)이나 주황색(경고) 점으로 표시하고, 그 자리에 물결 밑줄을 긋는다.
  * 표시된 줄 번호에 마우스를 올리거나 캐럿이 그 줄에 있으면 문제 문장을 줄 바로 아래에 띄운다.
  */
-import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
+import { useEffect, useImperativeHandle, type KeyboardEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import type * as Y from 'yjs';
 import type { RelProblem } from '../../shared/relational/userSchema';
+import { parseRelational } from '../../shared/relational/text';
 import { msgText, ProblemIcon } from './common';
+import { completionAt, type Completion } from './complete';
 import { lineSegments, splitLines, type Segment } from './mirror';
 import { useRelPanes } from './paneStore';
 import type { RelationalSource } from './richText';
@@ -59,6 +61,13 @@ export function useYSource(ytext: Y.Text): RelationalSource {
 }
 
 type Severity = RelProblem['severity'];
+
+let canvasCtx: CanvasRenderingContext2D | null = null;
+/** 글자 폭을 재는 캔버스 */
+function measureCtx(): CanvasRenderingContext2D {
+  if (!canvasCtx) canvasCtx = document.createElement('canvas').getContext('2d')!;
+  return canvasCtx;
+}
 
 /** 줄마다의 문제(1부터). 문제의 줄이 글보다 뒤면 마지막 줄로 모은다 */
 function problemsByLine(problems: readonly RelProblem[], lineCount: number): Map<number, RelProblem[]> {
@@ -124,6 +133,9 @@ export function RelationalEditor({ ytext, source, problems, placeholder, label, 
   const [preview, setPreview] = useState<RelationalSource | null>(null);
   const stateRef = useRef(onUnderlineState);
   stateRef.current = onUnderlineState;
+  /** 자동완성 후보와 고른 줄. 글자를 칠 때만 열린다 */
+  const [suggest, setSuggest] = useState<(Completion & { index: number; left: number; top: number }) | null>(null);
+  const schema = useMemo(() => parseRelational(source).schema, [source]);
 
   useLayoutEffect(() => {
     const el = areaRef.current;
@@ -178,6 +190,63 @@ export function RelationalEditor({ ytext, source, problems, placeholder, label, 
   const syncPreview = () => {
     const binding = bindingRef.current;
     setPreview(binding && binding.isComposing ? binding.previewSource() : null);
+    openSuggest();
+  };
+
+  /** 캐럿 자리의 후보를 연다(없으면 닫는다) */
+  const openSuggest = () => {
+    const el = areaRef.current;
+    const binding = bindingRef.current;
+    if (!el || !binding || binding.isComposing || el.selectionStart !== el.selectionEnd) {
+      setSuggest(null);
+      return;
+    }
+    const caret = el.selectionStart;
+    // 방금 친 글자는 아직 schema에 없을 수 있지만 후보는 다른 줄에서 고르므로 괜찮다
+    const found = completionAt(el.value, caret, schema);
+    if (!found) {
+      setSuggest(null);
+      return;
+    }
+    const lineStart = el.value.lastIndexOf('\n', found.from - 1) + 1;
+    const line = el.value.slice(0, lineStart).split('\n').length;
+    const style = getComputedStyle(el);
+    const ctx = measureCtx();
+    ctx.font = style.font;
+    const x = ctx.measureText(el.value.slice(lineStart, found.from)).width;
+    setSuggest({
+      ...found,
+      index: 0,
+      left: parseFloat(style.paddingLeft) + x - el.scrollLeft - 6,
+      top: PAD_TOP + line * LINE_PX - el.scrollTop + 2,
+    });
+  };
+
+  const acceptSuggest = (item: string) => {
+    const el = areaRef.current;
+    if (!el || !suggest) return;
+    el.setRangeText(item, suggest.from, suggest.to, 'end');
+    setSuggest(null);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    setSuggest(null);
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!suggest || e.nativeEvent.isComposing) return;
+    if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey)) {
+      e.preventDefault();
+      acceptSuggest(suggest.items[suggest.index]);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = suggest.items.length;
+      setSuggest({ ...suggest, index: (suggest.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setSuggest(null);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+      setSuggest(null);
+    }
   };
 
   // 남의 입력으로 글이 바뀌면 캐럿 줄과 스크롤도 다시 잰다
@@ -212,7 +281,7 @@ export function RelationalEditor({ ytext, source, problems, placeholder, label, 
   }, [reveal]);
 
   const shownLine = hoverLine ?? caretLine;
-  const shown = shownLine !== null ? byLine.get(shownLine) : undefined;
+  const shown = shownLine !== null && !suggest ? byLine.get(shownLine) : undefined;
   const popTop = shownLine !== null ? PAD_TOP + shownLine * LINE_PX - scroll.top + 2 : 0;
   const popAbove = height > 0 && popTop + 48 > height;
   const errorCount = problems.filter((p) => p.severity === 'error').length;
@@ -262,15 +331,41 @@ export function RelationalEditor({ ytext, source, problems, placeholder, label, 
           autoComplete="off"
           autoCorrect="off"
           wrap="off"
-          onScroll={syncScroll}
+          onScroll={() => {
+            syncScroll();
+            setSuggest(null);
+          }}
           onSelect={syncCaret}
           onKeyUp={syncCaret}
           onMouseUp={syncCaret}
           onFocus={syncCaret}
-          onBlur={() => setCaretLine(null)}
+          onBlur={() => {
+            setCaretLine(null);
+            setSuggest(null);
+          }}
+          onKeyDown={onKeyDown}
+          onMouseDown={() => setSuggest(null)}
           onInput={syncPreview}
           onCompositionEnd={() => setPreview(null)}
         />
+        {suggest && (
+          <ul className="rel-suggest" role="listbox" data-testid="relational-suggest" style={{ left: Math.max(0, suggest.left), top: suggest.top }}>
+            {suggest.items.map((item, i) => (
+              <li
+                key={item}
+                role="option"
+                aria-selected={i === suggest.index}
+                className={i === suggest.index ? 'is-active' : undefined}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  acceptSuggest(item);
+                }}
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        )}
         {shown && (
           <div
             id="rel-problem-pop"

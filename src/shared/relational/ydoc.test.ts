@@ -5,7 +5,19 @@ import { applyChange, getEdges, getNodes, getTitle } from '../ydoc';
 import { columnKey } from './settings';
 import { fromMarkup, toMarkup } from './markup';
 import { UNDERLINE_ATTR, type RelationalSource } from './userSchema';
-import { getColumnSettingsMap, getRelationalText, readColumnSettings, readRelationalSource, setColumnSetting, setRelationalSource, setRelationalText } from './ydoc';
+import {
+  deleteIePosition,
+  getColumnSettingsMap,
+  getIePositionsMap,
+  getRelationalText,
+  readColumnSettings,
+  readIePositions,
+  readRelationalSource,
+  setColumnSetting,
+  setIePosition,
+  setRelationalSource,
+  setRelationalText,
+} from './ydoc';
 
 function sync(a: Y.Doc, b: Y.Doc): void {
   Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
@@ -231,5 +243,43 @@ describe('밑줄이 있는 관계 모델 글', () => {
     ytext.insertEmbed(1, { x: 1 });
     setRelationalSource(doc, src('T(_a_)'));
     expect(ytext.toDelta()).toEqual([{ insert: 'T(' }, { insert: 'a', attributes: { [UNDERLINE_ATTR]: true } }, { insert: ')' }]);
+  });
+});
+
+describe('IE 상자 자리', () => {
+  it('키는 nameKey(테이블)이고 쓰고 읽고 지운다', () => {
+    const doc = new Y.Doc();
+    expect(readIePositions(doc)).toEqual({});
+    expect(setIePosition(doc, '  Student  Info ', { x: 10.5, y: -20 })).toBe(true);
+    expect(readIePositions(doc)).toEqual({ 'student info': { x: 10.5, y: -20 } });
+    expect(getIePositionsMap(doc).get('student info')).toEqual({ x: 10.5, y: -20 });
+    deleteIePosition(doc, 'STUDENT INFO');
+    expect(readIePositions(doc)).toEqual({});
+  });
+
+  it('틀린 값은 쓰지 않고, 같은 값이면 문서를 건드리지 않는다', () => {
+    const doc = new Y.Doc();
+    expect(setIePosition(doc, '', { x: 1, y: 1 })).toBe(false);
+    expect(setIePosition(doc, 'A', { x: Number.NaN, y: 1 })).toBe(false);
+    expect(setIePosition(doc, 'A', { x: 1, y: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(readIePositions(doc)).toEqual({});
+    setIePosition(doc, 'A', { x: 1, y: 2 });
+    let updates = 0;
+    doc.on('update', () => updates++);
+    setIePosition(doc, 'a', { x: 1, y: 2 });
+    deleteIePosition(doc, 'nothing');
+    expect(updates).toBe(0);
+  });
+
+  it('이미 들어 있는 틀린 키와 값은 읽을 때 무시한다', () => {
+    const doc = new Y.Doc();
+    const map = getIePositionsMap(doc);
+    map.set('ok', { x: 1, y: 2, extra: true });
+    map.set('Upper', { x: 1, y: 2 });
+    map.set('', { x: 1, y: 2 });
+    map.set('str', { x: '1', y: 2 });
+    map.set('arr', [1, 2]);
+    map.set('nul', null);
+    expect(readIePositions(doc)).toEqual({ ok: { x: 1, y: 2 } });
   });
 });

@@ -2,7 +2,7 @@
  * 캔버스만 쓰는 화면 상태. 공용 ui store에 없는 것(진행 중인 조작 종류, 스페이스 키 등)을 둔다. [담당: canvas 에이전트]
  */
 import { create } from 'zustand';
-import type { Point, Side } from '../../../shared/types';
+import type { Anchor, Point } from '../../../shared/types';
 import type { Handle } from './logic';
 
 /** 포인터 하나로 진행 중인 조작. 한 번에 하나만 활성화된다. */
@@ -17,7 +17,7 @@ export interface EdgeEndDrag {
   /** 현재 마우스 위치(월드 좌표) */
   to: Point;
   /** 달라붙은 고정점의 면. 근처에 없으면 null */
-  side: Side | null;
+  side: Anchor | null;
 }
 
 export interface CanvasLocalState {
@@ -33,11 +33,11 @@ export interface CanvasLocalState {
   /** 마우스를 올려 연결 점을 띄우고 있는 노드 */
   hostId: string | null;
   /** 연결을 연결 점에서 시작했을 때 그 면 */
-  connectSourceSide: Side | null;
+  connectSourceSide: Anchor | null;
   /** 연결 중 대상 도형의 고정점 4개를 보여 줄지(면을 저장하는 선일 때만) */
   connectShowAnchors: boolean;
   /** 연결 중 마우스가 달라붙은 대상 고정점의 면 */
-  connectTargetSide: Side | null;
+  connectTargetSide: Anchor | null;
   edgeEndDrag: EdgeEndDrag | null;
 }
 

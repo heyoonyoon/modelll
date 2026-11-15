@@ -5,7 +5,8 @@
 import { CliError } from '../cli/errors';
 import type { ChangeSummary } from '../cli/format';
 import { parseRoomRef } from '../cli/room';
-import type { ColumnSettings, SqlDialect } from '../shared/relational/userSchema';
+import type { IeDocument, IeWritePlan } from '../shared/relational/ieDocument';
+import type { ColumnSettings, RelProblem, SqlDialect } from '../shared/relational/userSchema';
 import type { Issue } from '../shared/types';
 
 /** 도구를 부른 쪽(모델)에게 한 문장으로 알릴 실패. 도구 결과의 isError로 나간다 */
@@ -37,6 +38,10 @@ export interface DiagramBackend {
   update(room: string, text: string, opts: { relayout: boolean }): Promise<WriteResult>;
   /** 방에서 사람들이 적은 관계 모델 글(없으면 빈 글, 밑줄은 _이름_ 표기로 바꾼 일반 텍스트)과 컬럼 설정을 그대로 준다. 없는 방이면 실패한다 */
   relational(room: string): Promise<{ url: string; title: string; text: string; settings: ColumnSettings; dialect?: SqlDialect | null }>;
+  /** (추가) 방의 IE 그림을 문서 모양으로 준다(관계 모델 글, 컬럼 설정, 상자 자리, DBMS). problems는 글의 문제. 없는 방이면 실패한다 */
+  ieRead(room: string): Promise<{ url: string; title: string; document: IeDocument; problems: RelProblem[] }>;
+  /** (추가) 검사를 마친 계획대로 방의 IE 그림을 통째로 바꾼다. 없는 방이면 실패한다. 바뀐 것이 있었는지 돌려준다 */
+  ieWrite(room: string, plan: IeWritePlan): Promise<{ url: string; changed: boolean }>;
 }
 
 /**

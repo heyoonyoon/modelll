@@ -7,14 +7,9 @@
 /* 그림이나 나란한 칸이 남은 높이를 채우는 본문. 너무 낮아지면 본문 전체를 스크롤한다 */
 .rp-body-fill > .ie-wrap, .rp-body-fill > .sql-body { flex: 1 1 auto; }
 .rp-btn { height: 30px; padding: 0 8px; }
-.rp-head > .rp-select + .rp-btn { margin-left: auto; }
-.rp-head > .rp-btn + .rp-btn { margin-left: 0; }
+.rp-head > .rp-btn:first-child { margin-left: auto; }
 .rel-ul-btn.is-active { background: var(--accent-soft); color: var(--accent); }
-.rp-select { display: inline-flex; align-items: center; gap: 6px; }
-.rp-select-label { font-size: 12px; color: var(--text-dim); }
-.rp-select-button { gap: 4px; border: 1px solid var(--border); }
-.rp-select-button.is-active { background: var(--bg-hover); }
-.rp[data-tight] .rp-btn-label, .rp[data-tight] .rp-select-label { display: none; }
+.rp[data-tight] .rp-btn-label { display: none; }
 .rp[data-tight] .rp-head { padding: 5px 8px; }
 .rp[data-tight] .rp-body { padding: 10px; gap: 10px; }
 
@@ -63,17 +58,24 @@
 .rel-problem-at { flex: none; margin-left: 6px; color: var(--text-faint); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ───────────── IE 다이어그램 ───────────── */
-.ie-wrap { position: relative; flex: 1 1 auto; min-height: 240px; overflow: hidden; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); }
+/* 그림은 ERD 캔버스처럼 pane을 가장자리까지 채운다(안쪽 카드, 테두리, 둥근 모서리 없음) */
+.ie-wrap { position: relative; flex: 1 1 auto; min-height: 240px; overflow: hidden; background: var(--bg-canvas); }
 .ie-stage { position: absolute; inset: 0; outline: none; cursor: grab; touch-action: none; }
 .ie-stage:active { cursor: grabbing; }
-.ie-stage:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius); }
+.ie-stage:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .ie-svg { display: block; user-select: none; }
-.ie-box { fill: #fff; stroke: #1a1a1a; stroke-width: 1.3; }
+/* 상자의 선은 바깥 테두리, 머리 아래, 칸 이름 줄 아래, 행 사이, 세로 칸 경계, 컬럼 추가 줄 위까지 모두 같은 굵기와 색이다.
+   선은 모두 상자 가장자리(테두리 중심)에서 끝나고, 테두리는 칸 바탕이 덮지 않게 맨 위(.ie-box-line)에 그린다 */
+.ie-table { --ie-line: #1a1a1a; --ie-line-w: 1.3px; }
+.ie-box { fill: #fff; stroke: none; }
+.ie-box-line { fill: none; stroke: var(--ie-line); stroke-width: var(--ie-line-w); }
 .ie-head { fill: #f1f3f5; }
-.ie-head-line { stroke: #1a1a1a; stroke-width: 1; }
-.ie-divider { stroke: #1a1a1a; stroke-width: 1; }
-.ie-grid-line { stroke: var(--border); stroke-width: 1; }
-.ie-row-line { stroke: var(--bg-hover); stroke-width: 1; }
+.ie-head-line, .ie-divider, .ie-grid-line, .ie-row-line, .ie-colhead-line { stroke: var(--ie-line); stroke-width: var(--ie-line-w); stroke-linecap: butt; }
+/* 칸 이름 줄(키, 이름, 타입, NULL): 언제나 보이는 작은 회색 글자 */
+.ie-colhead { fill: #fafbfc; }
+.ie-colhead-labels { pointer-events: none; }
+.ie-colhead-text { font-size: 10px; font-weight: 600; dominant-baseline: central; fill: var(--text-faint); }
+.ie-colhead-text.is-center { text-anchor: middle; }
 .ie-name { font-size: 14px; font-weight: 700; dominant-baseline: central; fill: #1a1a1a; }
 .ie-tag { font-size: 10px; font-weight: 700; dominant-baseline: central; text-anchor: middle; fill: var(--accent); font-family: var(--font-mono); }
 .ie-tag.is-stacked { font-size: 9px; }
@@ -112,19 +114,8 @@
 .rel-problem-badge:focus-visible { outline: 1px solid var(--accent); outline-offset: 0; }
 .rel-problem-count { display: inline-flex; align-items: center; gap: 4px; }
 .rel-problem-count:not(.is-on) .rel-sev-icon { color: var(--text-faint); }
-.ie-zoom { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
-.ie-zoom .btn { width: 30px; height: 30px; background: var(--bg-panel); box-shadow: var(--shadow); }
-.ie-legend { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 8px 10px; background: rgba(255, 255, 255, 0.94); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); font-size: 11px; color: var(--text-dim); }
-.ie-legend ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, auto); column-gap: 14px; row-gap: 2px; }
-.ie-legend li { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.ie-legend svg { flex: none; }
-/* 좁은 pane: 기호 설명은 기호 버튼을 눌렀을 때만 버튼 위에 한 줄씩 띄운다 */
-.ie-legend-compact { position: absolute; left: 8px; bottom: 8px; right: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
-.ie-legend-compact > * { pointer-events: auto; }
-.ie-legend-compact .ie-legend { position: static; max-width: 100%; max-height: 60vh; overflow: auto; }
-.ie-legend-compact .ie-legend ul { grid-template-columns: auto; }
-.ie-legend-toggle { height: 28px; padding: 0 10px; font-size: 12px; background: var(--bg-panel); box-shadow: var(--shadow); }
-.ie-legend-toggle.is-active { border-color: var(--accent); color: var(--accent); }
+/* 확대 버튼 묶음: ERD 캔버스의 확대 묶음처럼 얇은 테두리 하나에 버튼을 넣는다 */
+.ie-zoom { position: absolute; left: 12px; bottom: 12px; z-index: 2; }
 
 /* ───────────── SQL ───────────── */
 .sql-body { gap: 12px; }
@@ -165,16 +156,102 @@
 .sql-null-select:disabled { opacity: 1; color: var(--text-dim); background: var(--bg-canvas); }
 .sql-types-unique input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); vertical-align: middle; }
 
-/* ───────────── 칸 메뉴와 타입 목록(앱의 패널 메뉴 모양을 body에 띄운다) ───────────── */
-.rel-menu { position: fixed; top: auto; right: auto; z-index: 60; min-width: 140px; max-height: 280px; margin: 0; padding: 4px; overflow-y: auto; overscroll-behavior: contain; list-style: none; font-size: 13px; }
-.rel-menu-item { height: 28px; padding: 0 10px 0 6px; font-size: 13px; }
-.rel-type-list .rel-menu-item { padding: 0 10px; }
-.rel-menu-item.is-active { background: var(--bg-hover); }
-.rel-menu-mono { font-family: var(--font-mono); font-size: 12px; }
-.rel-menu-form { min-width: 220px; padding: 10px; }
 .ie-fk-form { display: flex; flex-direction: column; gap: 8px; }
 .ie-fk-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); }
 .ie-fk-field .input { height: 30px; padding: 0 6px; color: var(--text); }
 .ie-fk-note { margin: 0; font-size: 12px; color: var(--danger); }
 .ie-fk-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .ie-fk-actions .btn { height: 28px; padding: 0 10px; font-size: 12px; }
+
+/* ───────────── (추가) IE 편집: 도구 줄, 상자 버튼, 고르기, 관계 잇기, 빈 화면 ───────────── */
+.ie-overlay { right: 112px; flex-wrap: wrap; align-items: center; pointer-events: none; }
+.ie-overlay > * { pointer-events: auto; }
+.ie-tools { display: inline-flex; align-items: center; gap: 2px; padding: 2px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); }
+.ie-tool { width: 30px; height: 30px; color: var(--text-dim); }
+.ie-tool:hover { color: var(--text); }
+.ie-tool:focus-visible, .ie-ctl-btn:focus-visible, .ie-empty-add:focus-visible, .ie-link-pop-delete:focus-visible, .ie-link-pop-mode-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ie-tool.is-disabled, .ie-empty-add.is-disabled, .ie-link-pop-delete.is-disabled, .ie-link-pop-mode-btn.is-disabled { opacity: 0.45; cursor: not-allowed; }
+.ie-tool.is-disabled:hover { background: transparent; color: var(--text-dim); }
+.ie-tools-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--border); }
+
+/* 상자: 고른 상자는 테두리만 파랗게. 끌어서 옮긴다 */
+.ie-table.is-selected .ie-box-line { stroke: var(--accent); stroke-width: 2px; }
+.ie-stage .ie-box, .ie-stage .ie-cell-table.is-editable { cursor: move; }
+.ie-stage.is-moving, .ie-stage.is-moving * { cursor: grabbing !important; }
+.ie-stage.is-linking, .ie-stage.is-linking * { cursor: crosshair !important; }
+.ie-row-bridge { fill: transparent; }
+/* 상자 둘레: 상자에 올린 뒤에만 포인터를 받아 연결 점과 아래 버튼까지 올려 둔 상태가 이어진다 */
+.ie-table-reach { fill: transparent; pointer-events: none; }
+.ie-table:hover .ie-table-reach { pointer-events: all; }
+.ie-stage.is-moving .ie-table-reach, .ie-stage.is-linking .ie-table-reach { pointer-events: none; }
+
+/* 상자 버튼(머리의 테이블 삭제, 아래 끝의 컬럼 추가)과 행의 컬럼 삭제: 올려 두거나 고르거나 포커스가 안에 있을 때만 보인다 */
+.ie-ctl { overflow: visible; visibility: hidden; }
+.ie-table:hover .ie-ctl, .ie-table.is-selected .ie-ctl, .ie-table:focus-within .ie-ctl { visibility: visible; }
+.ie-table .ie-row .ie-col-del { visibility: hidden; }
+.ie-row:hover .ie-col-del, .ie-row:focus-within .ie-col-del, .ie-table.is-selected .ie-col-del { visibility: visible; }
+.ie-stage.is-moving .ie-ctl, .ie-stage.is-linking .ie-ctl { visibility: hidden; }
+.ie-ctl-btn { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); font: inherit; font-size: 11px; cursor: pointer; }
+.ie-ctl-btn:hover { background: var(--bg-hover); color: var(--text); }
+.ie-ctl-btn .rel-icon { width: 12px; height: 12px; }
+.ie-table-del .ie-ctl-icon { width: 24px; height: 24px; border-color: transparent; background: #f1f3f5; border-radius: var(--radius-sm); }
+/* 컬럼 추가: 상자 바로 아래 왼쪽의 작은 알약 버튼 */
+.ie-add-col-btn { height: 100%; padding: 0 9px 0 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-panel); color: var(--text-dim); white-space: nowrap; }
+.ie-add-col-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-panel); }
+.ie-col-del .ie-ctl-icon { width: 20px; height: 20px; border-radius: 50%; }
+.ie-ctl-btn.is-danger:hover, .ie-col-del .ie-ctl-btn:hover { color: var(--danger); border-color: var(--danger); }
+.ie-ctl-btn.is-disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 연결 점: ERD 캔버스의 연결 점과 같은 모양. 상자에 올리거나 고르면 보이고 끌어서 다른 상자에 놓는다 */
+.ie-connect-dot { cursor: crosshair; visibility: hidden; }
+.ie-table:hover .ie-connect-dot, .ie-table.is-selected .ie-connect-dot { visibility: visible; }
+.ie-stage.is-moving .ie-connect-dot, .ie-stage.is-linking .ie-connect-dot { visibility: hidden; }
+.ie-connect-dot-hit { fill: transparent; stroke: none; }
+.ie-connect-dot-mark { fill: #fff; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: fill 0.1s; }
+.ie-connect-dot:hover .ie-connect-dot-mark, .ie-connect-dot-mark.is-active { fill: var(--accent); }
+.ie-draft-target { fill: rgba(13, 110, 253, 0.06); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+
+/* 관계: 가는 선도 누르기 쉽게 넓은 투명 선을 깐다. 고른 관계는 파랗게 */
+.ie-link-hit { fill: none; stroke: transparent; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; pointer-events: stroke; cursor: pointer; }
+/* 올려 둔 관계: ERD 선처럼 옅은 파란 후광. 고른 관계는 후광 없이 파란 선(더 굵게) */
+.ie-link-glow { fill: none; stroke: var(--accent); stroke-opacity: 0.25; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; visibility: hidden; }
+.ie-link:hover:not(.is-selected) .ie-link-glow { visibility: visible; }
+.ie-link:hover:not(.is-selected) .ie-link-line, .ie-link:hover:not(.is-selected) .ie-mark { stroke: #0b3d91; }
+.ie-stage.is-moving .ie-link-glow, .ie-stage.is-linking .ie-link-glow { visibility: hidden; }
+.ie-link { outline: none; }
+.ie-link.is-selected .ie-link-line, .ie-link.is-selected .ie-mark, .ie-link:focus-visible .ie-link-line { stroke: var(--accent); stroke-width: 2; }
+.ie-rubber { stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+.ie-rubber.is-dashed { stroke-dasharray: 6 4; }
+
+/* 고른 관계 아래의 작은 창 */
+.ie-link-pop { position: absolute; z-index: 3; display: flex; align-items: center; gap: 4px; height: 32px; padding: 3px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06); font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.ie-link-pop-mode { display: inline-flex; gap: 2px; padding: 2px; border-radius: 6px; background: var(--bg-hover); }
+.ie-link-pop-mode-btn { height: 22px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; }
+.ie-link-pop-mode-btn:hover { color: var(--text); }
+.ie-link-pop-mode-btn.is-active { background: var(--bg-panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12); }
+.ie-link-pop-sep { width: 1px; height: 16px; margin: 0 2px; background: var(--border); }
+.ie-link-pop-check { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; border-radius: 6px; cursor: pointer; }
+.ie-link-pop-check:hover { background: var(--bg-hover); color: var(--text); }
+.ie-link-pop-check input { width: 12px; height: 12px; margin: 0; accent-color: var(--accent); }
+.ie-link-pop-delete { height: 24px; padding: 0 8px; gap: 5px; border-radius: 6px; font-size: 12px; color: var(--danger); }
+.ie-link-pop-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.ie-link-pop-delete svg { width: 13px; height: 13px; }
+
+/* 빈 화면: 가운데에 테이블 추가 버튼. 빈 곳 두 번 누르기는 그림이 받는다 */
+.ie-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: none; }
+.ie-empty-card { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 320px; text-align: center; }
+.ie-empty-card > * { pointer-events: auto; }
+.ie-empty-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.ie-empty-body { margin: 0 0 6px; font-size: 13px; color: var(--text-faint); }
+.ie-empty-add { gap: 4px; }
+
+/* 관계 모델 자동완성 목록 */
+.rel-suggest { position: absolute; z-index: 3; min-width: 120px; max-width: 320px; margin: 0; padding: 3px; list-style: none; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-panel, #fff); box-shadow: var(--shadow); font: inherit; line-height: 20px; }
+.rel-suggest > li { padding: 0 8px; border-radius: 3px; white-space: pre; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.rel-suggest > li.is-active { background: var(--accent-soft); color: var(--accent); }
+.rel-suggest > li:hover:not(.is-active) { background: var(--bg-hover); }
+
+/* 테이블 놓기: 포인터를 따라다니는 새 테이블 실루엣 */
+.ie-stage.is-placing, .ie-stage.is-placing .ie-svg { cursor: crosshair; }
+.ie-ghost rect { fill: color-mix(in srgb, var(--accent) 6%, transparent); stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.ie-ghost line { stroke: var(--accent); stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }

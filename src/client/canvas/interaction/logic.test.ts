@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MIN_NODE_SIZE, type ErdEdge, type ErdNode } from '../../../shared/types';
 import {
+  connectDiagonalPoints,
   connectDotPoints,
   edgeSideProps,
   exceedsThreshold,
@@ -140,6 +141,26 @@ describe('connectDotPoints', () => {
   });
 });
 
+describe('connectDiagonalPoints', () => {
+  it('사각형은 네 모서리 바깥 대각선에 놓는다', () => {
+    const pts = connectDiagonalPoints(node('n', 0, 0, 100, 60), 10 * Math.SQRT2);
+    expect(pts.map((p) => p.side)).toEqual(['top-right', 'bottom-right', 'bottom-left', 'top-left']);
+    expect(pts[0].x).toBeCloseTo(110, 6);
+    expect(pts[0].y).toBeCloseTo(-10, 6);
+    expect(pts[2].x).toBeCloseTo(-10, 6);
+    expect(pts[2].y).toBeCloseTo(70, 6);
+  });
+
+  it('마름모는 변 가운데, 타원은 45도 자리 바깥에 놓고 모두 상하좌우 이름이 아니다', () => {
+    const r = connectDiagonalPoints(node('r', 0, 0, 140, 80, 'relationship'), 0);
+    expect(r[0]).toEqual({ side: 'top-right', x: 105, y: 20 });
+    const a = connectDiagonalPoints(node('a', 0, 0, 120, 60, 'attribute'), 0);
+    expect(a[1].x).toBeCloseTo(60 + 60 * Math.SQRT1_2, 6);
+    expect(a[1].y).toBeCloseTo(30 + 30 * Math.SQRT1_2, 6);
+    expect(a.every((p) => !isSide(p.side))).toBe(true);
+  });
+});
+
 describe('isSide', () => {
   it('네 면 이름만 통과시킨다', () => {
     expect(isSide('top')).toBe(true);
@@ -163,12 +184,10 @@ describe('면 저장 조건', () => {
     expect(shouldStoreSides(sp, e)).toBe(true);
   });
 
-  it('속성이 낀 선과 그 밖의 조합은 저장하지 않는다', () => {
-    expect(shouldStoreSides(e, a)).toBe(false);
-    expect(shouldStoreSides(r, a)).toBe(false);
-    expect(shouldStoreSides(a, a)).toBe(false);
-    expect(shouldStoreSides(e, e)).toBe(false);
-    expect(shouldStoreSides(r, sp)).toBe(false);
+  it('(바뀜) 메모가 낀 선만 빼고 모두 저장한다(연결 점 여덟 곳이 모두 붙는 자리)', () => {
+    expect(shouldStoreSides(e, a)).toBe(true);
+    expect(shouldStoreSides(r, a)).toBe(true);
+    expect(shouldStoreSides(r, sp)).toBe(true);
     expect(shouldStoreSides(e, memo)).toBe(false);
   });
 
@@ -180,9 +199,9 @@ describe('면 저장 조건', () => {
     expect(edgeSideProps(e, r, undefined, undefined)).toEqual({});
   });
 
-  it('저장 조건에 맞지 않으면 면이 주어져도 넣지 않는다', () => {
-    expect(edgeSideProps(e, a, 'bottom', 'top')).toEqual({});
-    expect(edgeSideProps(a, r, 'right', 'left')).toEqual({});
+  it('저장 조건에 맞지 않으면(메모) 면이 주어져도 넣지 않고, 면 사이 자리도 넣는다', () => {
+    expect(edgeSideProps(e, memo, 'bottom', 'top')).toEqual({});
+    expect(edgeSideProps(e, a, 'bottom-left', 'top')).toEqual({ sourceSide: 'bottom-left', targetSide: 'top' });
   });
 });
 

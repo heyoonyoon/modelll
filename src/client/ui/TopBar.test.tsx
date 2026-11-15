@@ -208,22 +208,10 @@ describe('TopBar 버튼', () => {
     expect(room.nodes.getSnapshot()).toHaveLength(1);
   });
 
-  it('검증 배지는 0이면 없고, 버튼들이 패널을 여닫는다', () => {
+  it('검증 버튼은 없고(다이어그램 정보 패널에 있다), 도움말 버튼이 패널을 연다', () => {
     const { room } = makeRoom();
-    const first = renderBar(room);
-    expect(screen.queryByTestId('issues-badge-error')).toBeNull();
-    expect(screen.queryByTestId('issues-badge-warning')).toBeNull();
-    first.unmount();
-
-    ex.issueCount = { errors: 2, warnings: 0 };
     renderBar(room);
-    expect(screen.getByTestId('issues-badge-error').textContent).toBe('2');
-    expect(screen.queryByTestId('issues-badge-warning')).toBeNull();
-
-    const issues = screen.getByTestId('issues-button');
-    fireEvent.click(issues);
-    expect(useUi.getState().panels.issues).toBe(true);
-    expect(issues.className).toContain('is-active');
+    expect(screen.queryByTestId('issues-button')).toBeNull();
     // 표기법 안내는 상단 버튼이 아니라 도움말 창의 탭에 있다
     expect(screen.queryByTestId('legend-button')).toBeNull();
     fireEvent.click(screen.getByTestId('help-button'));
@@ -469,15 +457,16 @@ describe('TopBar AI로 편집', () => {
     expect(screen.queryByTestId('ai-popover')).toBeNull();
   });
 
-  it('지시문에는 이 방의 주소와 syntax, pull, push 명령이 들어 있고 바꿀 내용을 적는 자리에서 끝난다', () => {
+  it('지시문에는 이 방의 주소와 ER(syntax, pull, push), IE(ie, ie push) 명령이 들어 있고 바꿀 내용을 적는 자리에서 끝난다', () => {
     const { room } = makeRoom();
     renderBar(room);
     fireEvent.click(screen.getByTestId('ai-button'));
     expect(screen.getByTestId('ai-prompt-text').textContent).toBe(
       [
-        `이 modelll ER 다이어그램을 고쳐 주세요. 방 주소는 ${ROOM_URL()} 입니다.`,
-        '먼저 `npx -y modelll syntax`를 실행해 텍스트 형식을 읽어 주세요.',
-        `그다음 \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`로 현재 다이어그램을 받아 파일을 고치고, \`npx -y modelll push ${ROOM_URL()} model.mdl\`로 방에 반영해 주세요.`,
+        `이 modelll 방의 다이어그램을 고쳐 주세요. 방 주소는 ${ROOM_URL()} 입니다.`,
+        '먼저 `npx -y modelll --help`로 명령을 확인해 주세요.',
+        `ER 다이어그램은 \`npx -y modelll syntax\`로 형식을 읽고 \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`로 받아 고친 뒤 \`npx -y modelll push ${ROOM_URL()} model.mdl\`로 반영합니다.`,
+        `IE 다이어그램과 관계 모델은 \`npx -y modelll ie ${ROOM_URL()} --json > ie.json\`으로 받아 고친 뒤 \`npx -y modelll ie push ${ROOM_URL()} ie.json\`으로 반영합니다.`,
         '바꿀 내용: ',
       ].join('\n'),
     );
@@ -581,9 +570,10 @@ describe('TopBar AI로 편집', () => {
       expect(btn.textContent).toBe('Use with AI');
       fireEvent.click(btn);
       const prompt = [
-        `Please edit this modelll ER diagram: ${ROOM_URL()}`,
-        'First run `npx -y modelll syntax` to read the text format.',
-        `Then fetch the current diagram with \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`, edit the file, and apply it with \`npx -y modelll push ${ROOM_URL()} model.mdl\`.`,
+        `Please edit the diagrams in this modelll room: ${ROOM_URL()}`,
+        'First run `npx -y modelll --help` to see the commands.',
+        `For the ER diagram, read the format with \`npx -y modelll syntax\`, fetch it with \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`, edit the file, and apply it with \`npx -y modelll push ${ROOM_URL()} model.mdl\`.`,
+        `For the IE diagram and relational model, fetch it with \`npx -y modelll ie ${ROOM_URL()} --json > ie.json\`, edit the file, and apply it with \`npx -y modelll ie push ${ROOM_URL()} ie.json\`.`,
         'What to change: ',
       ].join('\n');
       expect(screen.getByTestId('ai-prompt-text').textContent).toBe(prompt);
@@ -591,7 +581,7 @@ describe('TopBar AI로 편집', () => {
         'Use the CLI',
         'Connect over MCP',
       ]);
-      expect(screen.getByTestId('ai-way-cli').textContent).toContain('edits the diagram with npx -y modelll commands');
+      expect(screen.getByTestId('ai-way-cli').textContent).toContain('edits the ER and IE diagrams with npx -y modelll commands');
       expect(screen.getByTestId('ai-way-mcp').textContent).toContain('Add this URL as a remote MCP server or connector');
       expect(screen.getByTestId('ai-mcp-text').textContent).toBe(`${location.origin}/mcp`);
       expect(screen.getByTestId('ai-popover').textContent).not.toMatch(/[ㄱ-ㆎ가-힣]/);

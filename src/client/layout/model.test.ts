@@ -93,13 +93,13 @@ function shape(n: LayoutNode): string {
 const groupWith = (s: LayoutState, p: PaneId) => groupOfPane(s, p)!.id;
 
 describe('defaultLayout', () => {
-  it('왼쪽 ERD(55%), 오른쪽 한 그룹에 관계 모델, SQL, IE 탭(관계 모델 보임)', () => {
+  it('왼쪽 ERD(55%), 오른쪽 한 그룹에 IE, 관계 모델, SQL 탭(IE 보임)', () => {
     const s = defaultLayout();
     expectNormalized(s);
-    expect(shape(s.root)).toBe('row([*erd] [*relational,sql,ie])');
+    expect(shape(s.root)).toBe('row([*erd] [*ie,relational,sql])');
     expect(s.root.type === 'split' && s.root.sizes).toEqual([0.55, 0.45]);
     expect(s.maximized).toBeNull();
-    expect(openPanes(s)).toEqual(['erd', 'relational', 'sql', 'ie']);
+    expect(openPanes(s)).toEqual(['erd', 'ie', 'relational', 'sql']);
     expect(PANE_IDS).toEqual(['erd', 'relational', 'ie', 'sql']);
   });
 });

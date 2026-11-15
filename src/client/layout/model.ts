@@ -24,8 +24,8 @@ const ERD_SHARE = 0.55;
 // ───────────── 기본 배치 ─────────────
 
 /**
- * 처음 배치. 왼쪽에 ERD(55%), 오른쪽 위에 관계 모델 글(오른쪽 높이의 절반), 오른쪽 아래에 IE 다이어그램과 SQL 탭.
- * 사람이 그리는 ERD, 사람이 적는 관계 모델, 그 글에서 나오는 IE와 SQL을 한눈에 본다.
+ * 처음 배치. 왼쪽에 ERD(55%), 오른쪽 한 그룹에 IE 다이어그램, 관계 모델, SQL 탭(IE가 보인다).
+ * 사람이 그리는 ERD 옆에서 IE를 바로 고치고, 글과 SQL은 탭으로 넘겨 본다. 저장된 배치가 있는 사람은 그대로 쓴다.
  * 최근 그룹은 ERD 그룹이라서 좁은 화면에서 처음 보이는 pane은 ERD다.
  */
 export function defaultLayout(): LayoutState {
@@ -38,7 +38,7 @@ export function defaultLayout(): LayoutState {
       sizes: [0.55, 0.45],
       children: [
         { type: 'group', id: 'g1', panes: ['erd'], active: 'erd' },
-        { type: 'group', id: 'g2', panes: ['relational', 'sql', 'ie'], active: 'relational' },
+        { type: 'group', id: 'g2', panes: ['ie', 'relational', 'sql'], active: 'ie' },
       ],
     },
     maximized: null,

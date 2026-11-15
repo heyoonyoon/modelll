@@ -11,6 +11,8 @@ import { version } from '../../package.json';
 import { parseModel } from '../shared/model';
 import { ROOM_ID_PATTERN } from '../shared/types';
 import { getNodes, getTitle } from '../shared/ydoc';
+import { columnKey } from '../shared/relational/settings';
+import { readColumnSettings, readIePositions } from '../shared/relational/ydoc';
 import { publicOrigin } from './mcp';
 import { createErdServer, type ErdServer, type ErdServerOptions } from './server';
 
@@ -157,7 +159,7 @@ describe('MCP 엔드포인트', () => {
       expect(client.getInstructions()).toContain('read_diagram');
 
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql']);
+      expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql', 'get_ie_diagram', 'set_ie_diagram']);
       const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
       expect(byName.read_diagram.annotations?.readOnlyHint).toBe(true);
       expect(byName.update_diagram.annotations?.destructiveHint).toBe(true);
@@ -263,6 +265,45 @@ describe('MCP 엔드포인트', () => {
     await call(client, 'update_diagram', { room: roomId, text: `${STUDENTS}entity 교수 { 사번 key }\n` });
     await waitFor(() => getNodes(doc).some((n) => n.text === '교수'), '고친 내용 받기');
     expect(getTitle(doc)).toBe('수강신청');
+  });
+
+  it('set_ie_diagram으로 그린 IE 그림이 방에 바로 보이고, get_ie_diagram과 diagram_to_sql이 그것을 읽는다', async () => {
+    await boot();
+    const client = await connect();
+    const url = createdUrl(await call(client, 'create_diagram', { text: '' }));
+    const roomId = url.split('/').pop()!;
+    const doc = new Y.Doc();
+    const provider = new WebsocketProvider(`ws://127.0.0.1:${port}/ws`, roomId, doc, {
+      WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+      disableBc: true,
+    });
+    providers.push(provider);
+    await waitFor(() => provider.synced, '동기화');
+
+    const diagram = {
+      tables: [
+        { name: 'Prof', x: 10, y: 20, columns: [{ name: 'id', pk: true, type: 'INT' }] },
+        { name: 'Student', columns: [{ name: 'sid', pk: true, type: 'INT' }, { name: 'advisor', notNull: true }] },
+      ],
+      relationships: [{ child: 'Student', columns: ['advisor'], parent: 'Prof' }],
+    };
+    const set = await call(client, 'set_ie_diagram', { room: url, diagram });
+    expect(set).toEqual({ isError: false, text: `Updated the IE diagram of ${url} (2 tables, 3 columns, 1 relationship)\nno issues` });
+    await waitFor(() => readIePositions(doc).prof?.x === 10, '실시간 반영');
+    expect(readColumnSettings(doc)[columnKey('Student', 'advisor')]).toEqual({ notNull: true });
+
+    const got = await call(client, 'get_ie_diagram', { room: roomId });
+    expect(got.isError).toBe(false);
+    const json = JSON.parse(got.text.split('\n').slice(1).join('\n'));
+    expect(json.relationships).toEqual([{ child: 'Student', columns: ['advisor'], parent: 'Prof', parentColumns: ['id'], identifying: false, cardinality: '1:N' }]);
+    const sql = await call(client, 'diagram_to_sql', { room: url });
+    expect(sql.text).toContain('"advisor" INTEGER NOT NULL');
+
+    const bad = await call(client, 'set_ie_diagram', { room: url, diagram: { tables: [{ name: 'X', columns: [{ name: 'a', type: 'TEXT $$' }] }] } });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toMatch(/^Nothing was saved/);
+    expect(readIePositions(doc).prof).toEqual({ x: 10, y: 20 });
+    expect((await call(client, 'get_ie_diagram', { room: 'nobody' })).isError).toBe(true);
   });
 
   it('없는 방은 읽어도 고쳐도 실패 결과이고 방이 생기지 않는다', async () => {

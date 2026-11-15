@@ -48,6 +48,24 @@ export interface ErdNode {
 /** 도형의 네 면. 마름모와 타원, 원에서는 그 방향의 꼭짓점(끝점)을 뜻한다. */
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export const SIDES: readonly Side[] = ['top', 'right', 'bottom', 'left'];
+/**
+ * (추가) 네 면 사이의 붙는 자리. 직사각형은 모서리, 마름모는 네 변의 가운데, 타원과 원은 45도 자리다.
+ * 예전 문서에는 없던 값이라, 이 값을 모르는 예전 화면은 자동으로 붙는 선으로 읽는다.
+ */
+export type Corner = 'top-right' | 'bottom-right' | 'bottom-left' | 'top-left';
+export const CORNERS: readonly Corner[] = ['top-right', 'bottom-right', 'bottom-left', 'top-left'];
+/** 선이 도형에 붙는 자리: 네 면이나 그 사이 넷(모두 여덟) */
+export type Anchor = Side | Corner;
+export const ANCHORS: readonly Anchor[] = ['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left'];
+export function isSideValue(v: unknown): v is Side {
+  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
+}
+export function isCorner(v: unknown): v is Corner {
+  return v === 'top-right' || v === 'bottom-right' || v === 'bottom-left' || v === 'top-left';
+}
+export function isAnchor(v: unknown): v is Anchor {
+  return isSideValue(v) || isCorner(v);
+}
 
 /** 선 모양. straight = 두 끝을 곧게 잇는 직선, elbow = 가로세로로만 꺾이는 선 */
 export type EdgeShapeKind = 'straight' | 'elbow';
@@ -63,10 +81,10 @@ export interface ErdEdge {
   label: string;
   /** 역할 이름(재귀 관계 등에서 사용). 없으면 ''. */
   role: string;
-  /** 선이 source 도형의 어느 면(꼭짓점)에 붙는지. 없으면 자동으로 고른다. */
-  sourceSide?: Side;
-  /** 선이 target 도형의 어느 면(꼭짓점)에 붙는지. 없으면 자동으로 고른다. */
-  targetSide?: Side;
+  /** 선이 source 도형의 어느 자리(면, 꼭짓점, 그 사이)에 붙는지. 없으면 자동으로 고른다. */
+  sourceSide?: Anchor;
+  /** 선이 target 도형의 어느 자리에 붙는지. 없으면 자동으로 고른다. */
+  targetSide?: Anchor;
   /**
    * 선 모양. 없으면 straight로 그린다. 붙는 면이 지정된 직선은 그 면의 고정점(마름모는 꼭짓점)끼리 곧게 잇는다.
    * elbow는 사용자가 직접 골랐을 때만 쓴다.

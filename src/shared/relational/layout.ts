@@ -1,7 +1,8 @@
 /**
  * IE 그림의 테이블 상자 배치. DOM 없이 글자 너비를 어림하므로 서버와 테스트에서도 같은 결과가 나온다.
  *
- * 상자 크기: 머리 40px, 컬럼 한 줄 28px. 기본키 묶음과 나머지 묶음이 각각 비면 반 줄(14px)을 둔다.
+ * 상자 크기: 머리 40px, 컬럼 한 줄 28px. 기본키 묶음이 비면 반 줄(14px)을 두고, 나머지 묶음이 비면 아무것도 두지 않는다
+ * (상자는 마지막 행에서 끝난다. 빈 칸만 있는 줄을 그리지 않는다).
  * 각 행은 [키 표시 | 이름 | 타입 | NULL] 네 칸이고, 칸 폭은 테이블 안에서 모두 같다(ieColumnGrid).
  * 너비는 네 칸의 합과 테이블 이름 중 넓은 쪽(최소 180px). 타입 칸은 정한 타입(없으면 물려받은 타입) 중 가장 긴 것에 맞추고,
  * 타입이 하나도 없어도 눌러서 적을 수 있게 최소 폭을 둔다.
@@ -9,9 +10,15 @@
  * 배치: 외래키 깊이로 층을 나눈다(참조당하는 부모가 위, 자식이 아래). 층 안의 순서는 위아래로 이어진 상자들의 평균 위치(barycenter)로
  * 몇 번 다시 정렬해 선이 덜 엇갈리게 하고, 층마다 가운데 정렬한다. 한 층이 너무 넓으면 여러 줄로 나눈다.
  * 상자 사이는 가로 100px, 세로 100px 띄워 선 끝 기호(까마귀발 등)가 들어갈 자리를 둔다. 좌표는 모두 정수다.
+ *
+ * (추가) 사람이 옮겨 놓은 자리(positions, 키는 nameKey(테이블))가 있으면 그 테이블은 그 자리(반올림)에 놓는다.
+ * 자리가 없는 테이블은 전체 자동 배치의 자리에 두되, 이미 놓은 상자와 겹치면 겹친 상자 아래(세로 100px 띄움)로 내린다.
+ * 그래서 상자 하나를 옮겨도 다른 상자는 움직이지 않는다. 옮겨 놓은 자리는 음수일 수 있다.
+ * width, height는 0부터 가장 오른쪽, 가장 아래 상자 끝까지다. 자리가 하나도 맞지 않으면 예전 배치와 똑같다.
  */
 import { approximateLineWidth } from '../measure';
-import type { IeLayout, IeModel, IeTable } from './userSchema';
+import { nameKey } from './names';
+import type { IeLayout, IeModel, IePositions, IeTable } from './userSchema';
 
 export const IE_BOX = {
   headerHeight: 40,
@@ -78,12 +85,59 @@ export function ieSectionHeight(rows: number): number {
   return rows > 0 ? rows * IE_BOX.rowHeight : IE_BOX.rowHeight / 2;
 }
 
-export function ieBoxSize(table: IeTable): { w: number; h: number } {
-  const pk = table.columns.filter((c) => c.primaryKey).length;
-  return { w: ieColumnGrid(table).w, h: IE_BOX.headerHeight + ieSectionHeight(pk) + ieSectionHeight(table.columns.length - pk) };
+/** 나머지(기본키가 아닌) 묶음의 높이. 비면 0(상자는 기본키 묶음의 마지막 행에서 끝난다) */
+export function ieOtherSectionHeight(rows: number): number {
+  return Math.max(0, rows) * IE_BOX.rowHeight;
 }
 
-export function layoutIe(model: IeModel): IeLayout {
+export function ieBoxSize(table: IeTable): { w: number; h: number } {
+  const pk = table.columns.filter((c) => c.primaryKey).length;
+  return { w: ieColumnGrid(table).w, h: IE_BOX.headerHeight + ieSectionHeight(pk) + ieOtherSectionHeight(table.columns.length - pk) };
+}
+
+type Box = IeLayout['tables'][string];
+
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+export function layoutIe(model: IeModel, positions?: IePositions): IeLayout {
+  const auto = autoLayout(model);
+  const saved = (name: string) => (positions && Object.hasOwn(positions, nameKey(name)) ? positions[nameKey(name)] : undefined);
+  const names = Object.keys(auto.tables);
+  const valid = (p: unknown): p is { x: number; y: number } =>
+    !!p && typeof p === 'object' && Number.isFinite((p as { x: unknown }).x) && Number.isFinite((p as { y: unknown }).y);
+  if (!names.some((n) => valid(saved(n)))) return auto;
+
+  const placed: Box[] = [];
+  const out: IeLayout['tables'] = {};
+  // 옮겨 놓은 상자부터
+  for (const name of names) {
+    const p = saved(name);
+    if (!valid(p)) continue;
+    const { w, h } = auto.tables[name];
+    out[name] = { x: Math.round(p.x), y: Math.round(p.y), w, h };
+    placed.push(out[name]);
+  }
+  // 나머지는 자동 배치 자리에. 겹치면 겹친 상자 아래로 내린다
+  for (const name of names) {
+    if (out[name]) continue;
+    const box = { ...auto.tables[name] };
+    for (;;) {
+      const hit = placed.find((b) => overlaps(b, box));
+      if (!hit) break;
+      box.y = hit.y + hit.h + IE_BOX.gapY;
+    }
+    out[name] = box;
+    placed.push(box);
+  }
+  const all = Object.values(out);
+  return {
+    tables: Object.fromEntries(names.map((n) => [n, out[n]])),
+    width: Math.max(0, ...all.map((b) => b.x + b.w)),
+    height: Math.max(0, ...all.map((b) => b.y + b.h)),
+  };
+}
+
+function autoLayout(model: IeModel): IeLayout {
   const B = IE_BOX;
   // 같은 이름이 둘이면 처음 것만(deriveIe는 이미 중복을 뺀다)
   const tables = model.tables.filter((t, i) => model.tables.findIndex((x) => x.name === t.name) === i);

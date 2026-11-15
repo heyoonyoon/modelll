@@ -14,15 +14,35 @@
  *                 'Foreign Key (컬럼) references 테이블 (컬럼)' 줄을 더하거나 지운다(planSetKeys).
  *   이름 칸, 테이블 이름 두 번 누르기: 이름 바꾸기(글의 테이블 줄, Foreign Key 줄, references를 함께 고친다).
  *   키보드로는 칸에 포커스를 두고 Enter(또는 F2)를 누른다. 그림에 포커스가 있을 때 ⌘Z, Ctrl+Z는 그림에서 고친 것만 되돌린다.
+ *
+ * (추가) 글 없이 그림만으로 모델 전체를 만든다. 모두 글을 고치는 계획(structure.ts)이라 글, SQL, 팀원 화면이 함께 바뀐다.
+ *   도구 줄: 테이블 추가 하나. 빈 곳을 두 번 눌러도 테이블을 더한다.
+ *   상자 끌기: 상자를 끌어 옮기고 놓을 때 한 번만 방 문서에 적는다(끄는 동안은 내 화면만 움직인다).
+ *              구조를 바꾸거나 상자를 옮기면 다른 상자 자리도 함께 적어 둔다(자동 배치가 다시 돌아 상자들이 튀지 않게).
+ *   상자 머리 아래 칸 이름 줄(키, 이름, 타입, NULL)은 언제나 보인다.
+ *   상자에 올리거나 고르면: 머리 오른쪽에 테이블 삭제, 상자 아래 끝에 컬럼 추가(더하고 바로 이름을 고친다), 행마다 컬럼 삭제.
+ *   관계 잇기: ERD 캔버스처럼 상자에 올리면 연결 점이 나온다. 점을 끌어 다른 상자에 놓으면 끈 쪽이 부모, 놓은 쪽이 자식인
+ *              비식별 관계가 생긴다. 끄는 동안 그 점에서 고무줄 선을 그리고 Esc는 그만둔다.
+ *   선 누르기: 관계를 고르고 작은 창에서 식별과 비식별을 바꾸거나(외래키 컬럼의 기본키 밑줄을 켜고 끈다) 지운다
+ *              (외래키 컬럼도 지울지 고른다). Delete와 Backspace는 고른 테이블이나 관계를 지운다.
+ *   글에 오류가 있으면 구조 도구는 막고 이유를 툴팁으로 보인다. 타입은 추측하지 않는다(새 컬럼은 이름만 있다).
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import type { ColumnSetting, IeColumn, IeLayout, IeModel, IeTable } from '../../shared/relational/userSchema';
+import type { ColumnSetting, IeColumn, IeLayout, IeModel, IePoint, IeTable } from '../../shared/relational/userSchema';
 import type { Viewport } from '../../shared/types';
 import { clampZoom, fitRect, panViewport, wheelDeltaPx, wheelPan, wheelZoomFactor, zoomViewportAt } from '../canvas/viewportMath';
 import { useT } from '../i18n';
 import { approximateLineWidth } from '../../shared/measure';
+import { CONNECT_DOT_OFFSET, CONNECT_DOT_RADIUS } from '../canvas/interaction/logic';
 import { toast } from '../ui/toast';
-import { icons, stopKeys } from './common';
+import { GridDots } from '../canvas/ViewportControls';
+import { computeSnap, GuideLines } from '../canvas/snap';
+import { SNAP_DISTANCE } from '../canvas/interaction/logic';
+import { useUi } from '../state/ui';
+import type { Guide } from '../../shared/types';
+import { MAX_ZOOM, MIN_ZOOM } from '../../shared/types';
+import '../canvas/ViewportControls.css';
+import { Icon, icons, stopKeys } from './common';
 import type { ForeignKeyTarget } from './engine';
 import { CellMenu, TypeCombo } from './pickers';
 import { IE_BOX, ieBoxSize, ieColumnGrid, ieSectionHeight, type IeColumnGrid } from './engine';
@@ -39,7 +59,28 @@ export interface IeEditor {
   setKeys(table: string, column: string, want: { primaryKey: boolean; foreignKey: boolean; ref?: ForeignKeyTarget }): string | null;
   /** 그림에서 고친 것 되돌리기(redo면 다시 실행) */
   undo(redo: boolean): void;
+  /** (추가) 테이블을 더하고 그 자리를 적는다 */
+  addTable(at: IePoint): IeOutcome<{ table: string }>;
+  deleteTable(table: string): string | null;
+  /** (추가) 이름만 있는 컬럼을 더한다(타입은 비워 둔다) */
+  addColumn(table: string): IeOutcome<{ column: string }>;
+  deleteColumn(table: string, column: string): string | null;
+  /** (추가) 부모의 기본키를 자식에 더하고 외래키 줄을 적는다. link는 새 선의 id */
+  addRelationship(child: string, parent: string, identifying: boolean): IeOutcome<{ link: string }>;
+  /** (추가) 선의 id('자식#fk1')로 관계를 지운다. dropColumns면 외래키 컬럼도 뺀다 */
+  deleteRelationship(linkId: string, dropColumns: boolean): string | null;
+  /** (추가) 관계를 식별이나 비식별로 바꾼다. 그 외래키 컬럼들의 기본키 밑줄을 함께 켜고 끈다(되돌리기 한 번) */
+  setIdentifying(child: string, columns: readonly string[], identifying: boolean): string | null;
+  /** (추가) 상자 자리 적기(한 번에) */
+  moveTables(points: Record<string, IePoint>): void;
+  /** (추가) 옮겨 놓은 자리를 모두 지운다(자동 배치로). 지운 것이 있으면 true */
+  resetPositions(): boolean;
+  /** (추가) 여러 편집을 한 번에(되돌리기 한 번에 함께 돌아간다) */
+  transact<T>(fn: () => T): T;
 }
+
+/** (추가) 성공이면 결과, 실패면 이유 글자 */
+export type IeOutcome<T> = ({ ok: true } & T) | { ok: false; message: string };
 
 /** 고치고 있는 칸 */
 interface EditingCell {
@@ -58,6 +99,63 @@ interface OpenMenu {
   table: string;
   column: string;
   fk?: { primaryKey: boolean };
+}
+
+/** (추가) 도구 줄과 상자 버튼 아이콘(앱의 아이콘처럼 16 칸, 선만) */
+const ieIcons = {
+  table: (
+    <Icon>
+      <rect x="1.75" y="2.75" width="9.5" height="9.5" rx="1.25" />
+      <path d="M1.75 6.25h9.5" />
+      <path d="M13.25 9.5v5M10.75 12h5" />
+    </Icon>
+  ),
+  trash: (
+    <Icon size={14}>
+      <path d="M2.75 4.25h10.5M6.25 4.25V2.75h3.5v1.5M4.25 4.25l.6 9h6.3l.6-9" />
+    </Icon>
+  ),
+  close: (
+    <Icon size={12}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </Icon>
+  ),
+};
+
+/** (추가) 그림 위의 작은 버튼(상자 버튼, 컬럼 삭제). 막혀 있으면 누를 때 이유를 알린다 */
+function CtlButton({
+  label,
+  testId,
+  blocked,
+  className,
+  onClick,
+  children,
+}: {
+  label: string;
+  testId: string;
+  blocked: string | null;
+  className: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`ie-ctl-btn ${className}${blocked ? ' is-disabled' : ''}`}
+      data-testid={testId}
+      aria-label={label}
+      title={blocked ?? label}
+      aria-disabled={blocked ? true : undefined}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (blocked) toast(blocked, 'error');
+        else onClick();
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 function MarkShape({ mark }: { mark: Mark }) {
@@ -226,6 +324,49 @@ interface TableBoxProps {
   onEdit: (cell: EditingCell | null, refocus?: boolean) => void;
   /** 칸 하나를 누른 것처럼 한다(키보드) */
   onActivate: (cell: { kind: string; table: string; column: string | null }) => void;
+  /** (추가) 고른 테이블인지 */
+  selected?: boolean;
+  /** (추가) 구조 편집(컬럼 추가와 삭제, 테이블 삭제). 없으면 버튼을 그리지 않는다 */
+  structure?: {
+    blocked: string | null;
+    onAddColumn: () => void;
+    onDelete: () => void;
+    onDeleteColumn: (column: string) => void;
+  };
+  /** (추가) 상자 안에 포커스가 들어오면(키보드로 고르기) */
+  onFocusTable?: () => void;
+  /** (추가) 연결 점을 그린다(관계 잇기). 화면 배율은 점 크기를 화면에서 같게 맞추는 데 쓴다 */
+  connectable?: boolean;
+  zoom?: number;
+}
+
+/** 머리 아래 칸 이름 줄(키, 이름, 타입, NULL)의 높이. 상자 크기는 엔진의 크기에 이만큼 더한다(화면에서만) */
+export const COLHEAD_H = 20;
+/** 상자 바로 아래(왼쪽 맞춤)에 띄우는 컬럼 추가 버튼: 상자와의 틈, 높이, 폭. 폭은 최소 상자 폭의 절반보다 좁아 아래 가운데 연결 점과 겹치지 않는다 */
+const ADD_GAP = 5;
+const ADD_H = 22;
+const ADD_W = 82;
+/** 머리 오른쪽 테이블 삭제 버튼 */
+const HEAD_BTN = 24;
+/** 행 오른쪽 컬럼 삭제 버튼 */
+const DEL_SIZE = 20;
+
+/** 연결 점 쪽 */
+type DotSide = 'top' | 'right' | 'bottom' | 'left';
+
+/**
+ * 상자의 연결 점 자리(월드 좌표). ERD 캔버스처럼 상자 바로 바깥, 화면에서 같은 거리에 둔다.
+ * 왼쪽과 오른쪽은 머리 높이에 두어 행의 컬럼 삭제 버튼과 겹치지 않는다. 아래쪽은 상자 아래 가운데다(컬럼 추가 버튼은 왼쪽에 있다).
+ */
+export function connectDots(box: Box, zoom: number): Array<{ side: DotSide; x: number; y: number }> {
+  const off = CONNECT_DOT_OFFSET / zoom;
+  const midY = box.y + B.headerHeight / 2;
+  return [
+    { side: 'top', x: box.x + box.w / 2, y: box.y - off },
+    { side: 'right', x: box.x + box.w + off, y: midY },
+    { side: 'bottom', x: box.x + box.w / 2, y: box.y + box.h + off },
+    { side: 'left', x: box.x - off, y: midY },
+  ];
 }
 
 /** 칸 x 경계 */
@@ -236,12 +377,27 @@ function gridX(box: Box, g: IeColumnGrid) {
   return { key: box.x, name, type, nullable };
 }
 
-function TableBox({ table, typeOptions, box, editor, editing, onEdit, onActivate }: TableBoxProps) {
+function TableBox({
+  table,
+  typeOptions,
+  box,
+  editor,
+  editing,
+  onEdit,
+  onActivate,
+  selected = false,
+  structure,
+  onFocusTable,
+  connectable = false,
+  zoom = 1,
+}: TableBoxProps) {
   const t = useT();
   const { headerHeight: header, rowHeight: row, cellPadX: pad } = B;
   const pkCols = table.columns.filter((c) => c.primaryKey);
   const otherCols = table.columns.filter((c) => !c.primaryKey);
-  const dividerY = box.y + header + ieSectionHeight(pkCols.length);
+  /** 첫 행의 위(머리와 칸 이름 줄 아래) */
+  const top = box.y + header + COLHEAD_H;
+  const dividerY = top + ieSectionHeight(pkCols.length);
   const g = ieColumnGrid(table, box.w);
   const X = gridX(box, g);
   const active = Boolean(editor);
@@ -400,12 +556,49 @@ function TableBox({ table, typeOptions, box, editor, editing, onEdit, onActivate
             onClose={(refocus) => onEdit(null, refocus)}
           />
         )}
+        {structure && (
+          <>
+            {/* 행 오른쪽의 삭제 버튼까지 올려 둔 상태가 이어지게 하는 투명한 자리 */}
+            <rect className="ie-row-bridge" x={box.x + box.w} y={y} width={DEL_SIZE + 8} height={row} />
+            <foreignObject className="ie-ctl ie-col-del" x={box.x + box.w + 4} y={y + (row - DEL_SIZE) / 2} width={DEL_SIZE} height={DEL_SIZE}>
+              <CtlButton
+                className="ie-ctl-icon"
+                testId={`ie-delete-column-${id}`}
+                label={t('relView.ie.deleteColumnLabel', names)}
+                blocked={structure.blocked}
+                onClick={() => structure.onDeleteColumn(c.name)}
+              >
+                {ieIcons.close}
+              </CtlButton>
+            </foreignObject>
+          </>
+        )}
       </g>
     );
   };
   const bottom = box.y + box.h;
+  const colHeadMid = box.y + header + COLHEAD_H / 2;
+  /** 올려 둔 상태가 연결 점과 상자 아래 버튼까지 이어지게 하는 투명한 둘레(상자에 올린 뒤에만 포인터를 받는다) */
+  const reach = Math.max(28, (CONNECT_DOT_OFFSET + CONNECT_DOT_RADIUS + 8) / zoom);
   return (
-    <g className="ie-table" data-table={table.name} role="group" aria-label={t('relView.ie.tableLabel', { name: table.name })}>
+    <g
+      className={`ie-table${selected ? ' is-selected' : ''}`}
+      data-table={table.name}
+      data-selected={selected ? 'true' : undefined}
+      role="group"
+      aria-label={t('relView.ie.tableLabel', { name: table.name })}
+      onFocus={onFocusTable}
+    >
+      {(structure || connectable) && (
+        <rect
+          className="ie-table-reach"
+          x={box.x - reach}
+          y={box.y - reach}
+          width={box.w + reach * 2}
+          height={box.h + Math.max(reach, ADD_GAP + ADD_H + 6) + reach}
+        />
+      )}
+      {/* 상자 바탕(누르기와 끌기를 받는다). 테두리는 칸 바탕이 덮지 않게 맨 위에 따로 그린다 */}
       <rect className="ie-box" x={box.x} y={box.y} width={box.w} height={box.h} rx={4} />
       <path className="ie-head" d={`M${box.x} ${box.y + header}V${box.y + 4}a4 4 0 0 1 4 -4H${box.x + box.w - 4}a4 4 0 0 1 4 4V${box.y + header}Z`} />
       <Cell
@@ -426,13 +619,31 @@ function TableBox({ table, typeOptions, box, editor, editing, onEdit, onActivate
           </text>
         )}
       </Cell>
+      {/* 칸 이름 줄: 언제나 보인다 */}
+      <rect className="ie-colhead" x={box.x} y={box.y + header} width={box.w} height={COLHEAD_H} />
+      <g className="ie-colhead-labels" data-testid={`ie-colhead-${table.name}`} aria-hidden="true">
+        <text className="ie-colhead-text is-center" x={X.key + g.key / 2} y={colHeadMid}>
+          {t('relView.ie.colKey')}
+        </text>
+        <text className="ie-colhead-text" x={X.name + pad} y={colHeadMid}>
+          {t('relView.ie.colName')}
+        </text>
+        <text className="ie-colhead-text" x={X.type + pad} y={colHeadMid}>
+          {t('sqlView.settings.type')}
+        </text>
+        <text className="ie-colhead-text" x={X.nullable + pad} y={colHeadMid}>
+          NULL
+        </text>
+      </g>
       {/* 칸 경계(세로, 옅게) */}
       {[X.name, X.type, X.nullable].map((x) => (
         <line key={x} className="ie-grid-line" x1={x} x2={x} y1={box.y + header} y2={bottom} />
       ))}
       <line className="ie-head-line" x1={box.x} y1={box.y + header} x2={box.x + box.w} y2={box.y + header} />
-      {pkCols.map((c, i) => rowEl(c, i, box.y + header + i * row, i === pkCols.length - 1))}
-      <line className="ie-divider" x1={box.x} y1={dividerY} x2={box.x + box.w} y2={dividerY} />
+      <line className="ie-colhead-line" x1={box.x} y1={top} x2={box.x + box.w} y2={top} />
+      {pkCols.map((c, i) => rowEl(c, i, top + i * row, i === pkCols.length - 1))}
+      {/* 나머지 묶음이 비면 상자는 기본키 묶음의 마지막 행에서 끝난다(빈 줄과 구분선을 그리지 않는다) */}
+      {otherCols.length > 0 && <line className="ie-divider" x1={box.x} y1={dividerY} x2={box.x + box.w} y2={dividerY} />}
       {otherCols.map((c, i) => rowEl(c, pkCols.length + i, dividerY + i * row, i === otherCols.length - 1))}
       {editor && editingTable && (
         <CellEditor
@@ -448,6 +659,52 @@ function TableBox({ table, typeOptions, box, editor, editing, onEdit, onActivate
           onClose={(refocus) => onEdit(null, refocus)}
         />
       )}
+      {structure && !editingTable && (
+        // 머리 오른쪽의 테이블 삭제: 올려 두거나 고르거나 포커스가 안에 있을 때만 보인다
+        <foreignObject
+          className="ie-ctl ie-table-del"
+          x={box.x + box.w - HEAD_BTN - 8}
+          y={box.y + (header - HEAD_BTN) / 2}
+          width={HEAD_BTN}
+          height={HEAD_BTN}
+        >
+          <CtlButton
+            className="ie-ctl-icon is-danger"
+            testId={`ie-delete-table-${table.name}`}
+            label={t('relView.ie.deleteTableLabel', { table: table.name })}
+            blocked={structure.blocked}
+            onClick={structure.onDelete}
+          >
+            {ieIcons.trash}
+          </CtlButton>
+        </foreignObject>
+      )}
+      {structure && (
+        // 컬럼 추가: 상자 바로 아래 왼쪽의 작은 알약 버튼(상자는 그대로). 상자 둘레의 투명한 자리가 올려 둔 상태를 이어 준다
+        <foreignObject className="ie-ctl ie-add-col" x={box.x} y={bottom + ADD_GAP} width={ADD_W} height={ADD_H}>
+          <CtlButton
+            className="ie-ctl-text ie-add-col-btn"
+            testId={`ie-add-column-${table.name}`}
+            label={t('relView.ie.addColumnLabel', { table: table.name })}
+            blocked={structure.blocked}
+            onClick={structure.onAddColumn}
+          >
+            {icons.plus}
+            <span>{t('relView.ie.addColumn')}</span>
+          </CtlButton>
+        </foreignObject>
+      )}
+      {/* 바깥 테두리. 모든 선과 같은 굵기와 색으로 맨 위에 그려 칸 바탕이 테두리를 덮지 않는다 */}
+      <g className="ie-outline" pointerEvents="none">
+        <rect className="ie-box-line" x={box.x} y={box.y} width={box.w} height={box.h} rx={4} />
+      </g>
+      {connectable &&
+        connectDots(box, zoom).map((d) => (
+          <g key={d.side} className="ie-connect-dot" data-connect-from={table.name} data-side={d.side} data-testid={`ie-connect-${table.name}-${d.side}`}>
+            <circle className="ie-connect-dot-hit" cx={d.x} cy={d.y} r={(CONNECT_DOT_RADIUS + 4) / zoom} />
+            <circle className="ie-connect-dot-mark" cx={d.x} cy={d.y} r={CONNECT_DOT_RADIUS / zoom} />
+          </g>
+        ))}
     </g>
   );
 }
@@ -540,48 +797,7 @@ function ForeignKeyForm({
   );
 }
 
-export function IeLegend({ id }: { id?: string }) {
-  const t = useT();
-  const kinds = [
-    { kind: 'exactly-one', end: { min: 1, max: '1' }, label: t('relView.ie.exactlyOne') },
-    { kind: 'zero-or-one', end: { min: 0, max: '1' }, label: t('relView.ie.zeroOrOne') },
-    { kind: 'one-or-many', end: { min: 1, max: 'N' }, label: t('relView.ie.oneOrMany') },
-    { kind: 'zero-or-many', end: { min: 0, max: 'N' }, label: t('relView.ie.zeroOrMany') },
-    { kind: 'max-one', end: { min: null, max: '1' }, label: t('relView.ie.maxOne') },
-    { kind: 'max-many', end: { min: null, max: 'N' }, label: t('relView.ie.maxMany') },
-  ] as const;
-  return (
-    <div className="ie-legend" id={id} data-testid="ie-legend" role="group" aria-label={t('relPane.legend.label')}>
-      <ul>
-        {kinds.map((k) => (
-          <li key={k.kind}>
-            <svg width="44" height="18" viewBox="0 0 44 18" aria-hidden="true">
-              <line className="ie-link-line" x1="2" y1="9" x2="42" y2="9" />
-              {endMarks(k.end, { x: 42, y: 9 }, { x: -1, y: 0 }).map((m, i) => (
-                <MarkShape key={i} mark={m} />
-              ))}
-            </svg>
-            <span>{k.label}</span>
-          </li>
-        ))}
-        <li>
-          <svg width="44" height="18" viewBox="0 0 44 18" aria-hidden="true">
-            <line className="ie-link-line" x1="2" y1="9" x2="42" y2="9" />
-          </svg>
-          <span>{t('relView.ie.identifying')}</span>
-        </li>
-        <li>
-          <svg width="44" height="18" viewBox="0 0 44 18" aria-hidden="true">
-            <line className="ie-link-line is-dashed" x1="2" y1="9" x2="42" y2="9" />
-          </svg>
-          <span>{t('relView.ie.nonIdentifying')}</span>
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-/** 상자 자리(엔진의 배치 자리에, 칸 수와 타입에 맞춘 크기). 배치에 없는 테이블은 빠진다 */
+/** 상자 자리(엔진의 배치 자리에, 칸 수와 타입에 맞춘 크기에 칸 이름 줄을 더한 높이). 배치에 없는 테이블은 빠진다 */
 function useBoxes(model: IeModel, layout: IeLayout): Record<string, Box> {
   return useMemo(() => {
     const out: Record<string, Box> = {};
@@ -589,7 +805,7 @@ function useBoxes(model: IeModel, layout: IeLayout): Record<string, Box> {
       const at = layout.tables[table.name];
       if (!at || out[table.name]) continue;
       const size = ieBoxSize(table);
-      out[table.name] = { x: at.x, y: at.y, w: Math.max(at.w, size.w), h: size.h };
+      out[table.name] = { x: at.x, y: at.y, w: Math.max(at.w, size.w), h: size.h + COLHEAD_H };
     }
     return out;
   }, [model, layout]);
@@ -604,35 +820,119 @@ function bounds(boxes: Record<string, Box>): Box | null {
 }
 
 const FIT_MAX = 1.25;
-/** 그림 칸이 이보다 낮으면(px) 기호 설명을 접는다 */
-const LOW_STAGE = 460;
 /** 이만큼(px) 넘게 움직이면 누르기가 아니라 끌기로 본다 */
 const CLICK_SLOP = 4;
 /** 두 번 누르기로 보는 간격(ms) */
 const DOUBLE_CLICK_MS = 450;
+/** (추가) 새 테이블 상자의 대강 크기(머리, 칸 이름 줄, 기본키 한 행). 빈 자리를 찾을 때 쓴다 */
+const NEW_BOX = { w: 220, h: B.headerHeight + COLHEAD_H + B.rowHeight };
+
+/** (추가) 고른 것(테이블 하나나 관계 하나) */
+type Selection = { kind: 'table'; table: string } | { kind: 'link'; id: string };
+
+/** (추가) 누르고 있는 동안의 상태: 화면 이동, 상자 옮기기, 관계 잇기 */
+interface Drag {
+  id: number;
+  /** 마지막 포인터 자리 */
+  x: number;
+  y: number;
+  /** 누른 자리 */
+  sx: number;
+  sy: number;
+  moved: number;
+  target: EventTarget | null;
+  mode: 'pan' | 'table' | 'link';
+  table?: string;
+  /** 옮기는 상자의 처음 자리 */
+  origin?: IePoint;
+}
+
+/** (추가) 연결 점을 끌고 있는 관계. from이 부모, 놓은 테이블이 자식. start는 끈 점, to는 포인터(월드 좌표) */
+interface LinkDraft {
+  from: string;
+  start: IePoint;
+  to: IePoint;
+  /** 포인터 아래의 놓을 수 있는 테이블 */
+  target: string | null;
+}
+
+/** 꺾은선의 길이 가운데 점 */
+function midpointOf(points: readonly IePoint[]): IePoint {
+  if (points.length === 1) return points[0];
+  const seg = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y));
+  let half = seg.reduce((a, b) => a + b, 0) / 2;
+  for (let i = 0; i < seg.length; i++) {
+    if (half <= seg[i] && seg[i] > 0) {
+      const r = half / seg[i];
+      return { x: points[i].x + (points[i + 1].x - points[i].x) * r, y: points[i].y + (points[i + 1].y - points[i].y) * r };
+    }
+    half -= seg[i];
+  }
+  return points[points.length - 1];
+}
 
 interface Props {
   model: IeModel;
   layout: IeLayout;
-  /** 있으면 그림 안에서 고친다(타입, NULL, 키, 이름). 없으면 보기만 한다 */
+  /** 있으면 그림 안에서 고친다(타입, NULL, 키, 이름, 테이블, 컬럼, 관계, 자리). 없으면 보기만 한다 */
   editor?: IeEditor;
+  /** (추가) 구조를 바꾸는 도구를 막는 이유(글에 오류가 있을 때). 없으면 null */
+  structureBlocked?: string | null;
   /** 타입 칸에서 고를 흔한 타입(고른 DBMS의 것) */
   typeOptions?: readonly string[];
-  /** 좁은 pane: 기호 설명을 그림 위에 띄우지 않고 기호 버튼으로 접어 둔다 */
-  compactLegend?: boolean;
   /** 그림 위 왼쪽 위에 띄울 것(오류 배지) */
+  /** 테이블 추가 버튼 옆에 둘 것(DBMS 고르기) */
+  tools?: ReactNode;
   overlay?: ReactNode;
 }
 
-export function IeDiagram({ model, layout, editor, typeOptions = [], compactLegend = false, overlay }: Props) {
+export function IeDiagram({ model, layout, editor, structureBlocked = null, typeOptions = [], overlay, tools }: Props) {
   const t = useT();
-  const [legendOpen, setLegendOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [view, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const viewRef = useRef(view);
   viewRef.current = view;
-  const boxes = useBoxes(model, layout);
+  const baseBoxes = useBoxes(model, layout);
+  // 끌고 있는 상자는 놓을 때까지 내 화면에서만 움직인다(놓을 때 방 문서에 한 번 적는다)
+  const [moving, setMoving] = useState<{ table: string; x: number; y: number } | null>(null);
+  /** 테이블을 끄는 동안의 정렬 안내선(ERD와 같은 정렬 붙기). 놓을 자리는 movingRef에 둔다 */
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const movingRef = useRef<{ table: string; x: number; y: number } | null>(null);
+  const showGrid = useUi((s) => s.showGrid);
+  const boxes = useMemo(() => {
+    if (!moving || !baseBoxes[moving.table]) return baseBoxes;
+    return { ...baseBoxes, [moving.table]: { ...baseBoxes[moving.table], x: moving.x, y: moving.y } };
+  }, [baseBoxes, moving]);
+  const blocked = editor ? structureBlocked : null;
+  /** 그림에서 테이블을 더하거나 지울 때는 화면을 다시 맞추지 않는다(놓은 자리가 그대로 보이게) */
+  const holdView = useRef(false);
+  // 그림에서 테이블 이름을 바꿀 때도 화면을 다시 맞추지 않는다(방금 더한 테이블 이름을 정할 때 화면이 움직이지 않게)
+  const boxEditor = useMemo<IeEditor | undefined>(
+    () =>
+      editor && {
+        ...editor,
+        renameTable: (table, next) => {
+          holdView.current = true;
+          const problem = editor.renameTable(table, next);
+          if (problem) holdView.current = false;
+          return problem;
+        },
+      },
+    [editor],
+  );
+  const [selection, setSelection] = useState<Selection | null>(null);
+  // 고른 것이 글에서 없어지면(지우거나 이름을 바꾸면) 고르지 않은 것으로 본다
+  const selected =
+    selection &&
+    (selection.kind === 'table' ? model.tables.some((tb) => tb.name === selection.table) : model.links.some((l) => l.id === selection.id))
+      ? selection
+      : null;
+  /** 연결 점을 끌고 있는 관계(끈 테이블이 글에서 없어지면 그만둔 것으로 본다) */
+  const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const draft = linkDraft && baseBoxes[linkDraft.from] ? linkDraft : null;
+  /** 관계를 지울 때 외래키 컬럼도 지울지(ERDCloud처럼 기본은 지운다) */
+  const [dropColumns, setDropColumns] = useState(true);
   const [editing, setEditing] = useState<EditingCell | null>(null);
   // 고치던 테이블이나 컬럼이 글에서 없어지면(팀원이 지우거나 이름을 바꾸면) 입력칸을 닫는다
   const editingAlive =
@@ -693,10 +993,8 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
     if (problem) toast(problem, 'error');
     closeMenu(true);
   };
-  /** 이름 칸과 테이블 이름은 두 번 눌러야 고친다(한 번 누르기는 그냥 고르기와 끌기) */
+  /** 이름 칸과 테이블 이름은 두 번 눌러야 고친다(한 번 누르기는 그냥 고르기와 끌기). 빈 곳 두 번 누르기는 테이블 추가 */
   const lastClick = useRef<{ key: string; at: number } | null>(null);
-  // 그림 칸이 낮아도 기호 설명을 접는다(펼쳐 두면 그림이 너무 작아진다)
-  const compact = compactLegend || (size.h > 0 && size.h < LOW_STAGE);
 
   const links = useMemo(() => model.links.filter((l) => boxes[l.child.table] && boxes[l.parent.table]), [model, boxes]);
   const routes = useMemo(
@@ -720,7 +1018,7 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
 
   /** 전체가 보이게 맞춘다 */
   const fit = () => {
-    const b = bounds(boxes);
+    const b = bounds(baseBoxes);
     if (!b || size.w === 0 || size.h === 0) return;
     // 위쪽은 상자 위로 돌아가는 선과 그 이름표가 잘리지 않게 더 넉넉히 둔다
     const fitIn = (area: { w: number; h: number }): Viewport => {
@@ -728,25 +1026,18 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
       const zoom = clampZoom(Math.min(v.zoom, FIT_MAX));
       return { zoom, x: area.w / 2 - (b.x + b.w / 2) * zoom, y: area.h / 2 - (b.y + b.h / 2) * zoom };
     };
-    let next = fitIn(size);
-    // 기호 설명이 그림 위 왼쪽 아래에 떠 있을 때, 맞춘 그림이 그 자리에 겹치면 그 높이만큼 아래를 비우고 다시 맞춘다
-    const legend = compact ? null : rootRef.current?.parentElement?.querySelector<HTMLElement>('.ie-legend');
-    if (legend && getComputedStyle(legend).position === 'absolute') {
-      const reserveH = legend.offsetHeight + 16;
-      const reserveW = legend.offsetWidth + 16;
-      const left = next.x + b.x * next.zoom;
-      const bottom = next.y + (b.y + b.h) * next.zoom;
-      if (left < reserveW && bottom > size.h - reserveH) next = fitIn({ w: size.w, h: Math.max(size.h - reserveH, size.h / 2) });
-    }
-    setViewport(next);
+    setViewport(fitIn(size));
   };
-  // 테이블이 생기거나 없어질 때만 다시 맞춘다(글자 하나 고칠 때마다 화면이 움직이지 않게)
+  // 테이블이 생기거나 없어질 때만 다시 맞춘다(글자 하나 고칠 때마다 화면이 움직이지 않게).
+  // 그림에서 테이블을 더하거나 지웠으면 맞추지 않는다(놓은 자리를 그대로 보여 준다)
   const fitKey = `${size.w}x${size.h}|${model.tables.map((tb) => tb.name).join('\u0000')}`;
   const fittedKey = useRef('');
   useEffect(() => {
     if (size.w === 0 || fittedKey.current === fitKey) return;
+    const hold = holdView.current && fittedKey.current !== '';
+    holdView.current = false;
     fittedKey.current = fitKey;
-    fit();
+    if (!hold) fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey]);
 
@@ -770,30 +1061,317 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  const drag = useRef<{ id: number; x: number; y: number; moved: number; target: EventTarget | null } | null>(null);
+  // ───────────── (추가) 구조 편집 ─────────────
+
+  /** 화면 좌표를 그림(월드) 좌표로 */
+  const toWorld = (clientX: number, clientY: number): IePoint => {
+    const r = rootRef.current?.getBoundingClientRect();
+    const v = viewRef.current;
+    return { x: (clientX - (r?.left ?? 0) - v.x) / v.zoom, y: (clientY - (r?.top ?? 0) - v.y) / v.zoom };
+  };
+  /** 지금 보이는 상자 자리 모두. 구조를 바꿀 때 함께 적어 두어 자동 배치가 다시 돌아도 상자들이 튀지 않게 한다 */
+  const frozen = (): Record<string, IePoint> => Object.fromEntries(Object.entries(baseBoxes).map(([n, b]) => [n, { x: b.x, y: b.y }]));
+  /** 구조 편집을 해도 되는지. 막혀 있으면 이유를 알린다 */
+  const guard = (): IeEditor | null => {
+    if (!editor) return null;
+    if (blocked) {
+      toast(blocked, 'error');
+      return null;
+    }
+    return editor;
+  };
+  /** 상자 자리를 함께 적으며 구조를 고친다(되돌리기 한 번에 함께 돌아간다) */
+  const withFrozen = <T,>(ed: IeEditor, fn: () => T): T =>
+    ed.transact(() => {
+      ed.moveTables(frozen());
+      return fn();
+    });
+  const report = (problem: string | null): boolean => {
+    if (problem) toast(problem, 'error');
+    return problem === null;
+  };
+  /** 보이는 화면 가운데 근처의 빈 자리(새 상자 왼쪽 위) */
+  const spotInView = (): IePoint => {
+    const v = viewRef.current;
+    const c = { x: (size.w / 2 - v.x) / v.zoom - NEW_BOX.w / 2, y: (size.h / 2 - v.y) / v.zoom - NEW_BOX.h / 2 };
+    const list = Object.values(baseBoxes);
+    const free = (p: IePoint) => !list.some((b) => p.x < b.x + b.w + 24 && b.x < p.x + NEW_BOX.w + 24 && p.y < b.y + b.h + 24 && b.y < p.y + NEW_BOX.h + 24);
+    for (let ring = 0; ring < 8; ring++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const p = { x: c.x + dx * (NEW_BOX.w + 40), y: c.y + dy * (NEW_BOX.h + 40) };
+          if (free(p)) return p;
+        }
+      }
+    }
+    return c;
+  };
+  const addTableAt = (at: IePoint) => {
+    const ed = guard();
+    if (!ed) return;
+    holdView.current = true;
+    const r = withFrozen(ed, () => ed.addTable({ x: Math.round(at.x), y: Math.round(at.y) }));
+    if (!r.ok) {
+      holdView.current = false;
+      toast(r.message, 'error');
+      return;
+    }
+    setMenu(null);
+    setSelection({ kind: 'table', table: r.table });
+    // 새 테이블은 바로 이름을 고친다
+    setEditing({ kind: 'table', table: r.table, column: null });
+  };
+  /** 테이블 추가 버튼을 누른 뒤: 새 테이블 실루엣이 포인터를 따라다니고, 누른 자리에 놓인다 */
+  const [placing, setPlacing] = useState<{ at: IePoint | null } | null>(null);
+  const startPlacing = () => {
+    if (!guard()) return;
+    setMenu(null);
+    setPlacing((cur) => (cur ? null : { at: null }));
+  };
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setPlacing(null);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [placing !== null]);
+  const addColumn = (table: string) => {
+    const ed = guard();
+    if (!ed) return;
+    const r = withFrozen(ed, () => ed.addColumn(table));
+    if (!r.ok) {
+      toast(r.message, 'error');
+      return;
+    }
+    setMenu(null);
+    setSelection({ kind: 'table', table });
+    // 새 컬럼은 바로 이름을 고친다(타입은 비워 둔다)
+    setEditing({ kind: 'name', table, column: r.column });
+  };
+  const refocusStage = () => rootRef.current?.focus({ preventScroll: true });
+  const deleteTable = (table: string) => {
+    const ed = guard();
+    if (!ed) return;
+    holdView.current = true;
+    if (!report(withFrozen(ed, () => ed.deleteTable(table)))) {
+      holdView.current = false;
+      return;
+    }
+    setMenu(null);
+    setSelection(null);
+    refocusStage();
+  };
+  const deleteColumn = (table: string, column: string) => {
+    const ed = guard();
+    if (!ed) return;
+    if (report(withFrozen(ed, () => ed.deleteColumn(table, column)))) setMenu(null);
+  };
+  const deleteLink = (id: string) => {
+    const ed = guard();
+    if (!ed) return;
+    if (!report(withFrozen(ed, () => ed.deleteRelationship(id, dropColumns)))) return;
+    setSelection(null);
+    refocusStage();
+  };
+  /** 관계 끌기를 그만둔다(Esc, 빈 곳에 놓기, 글에 오류가 생길 때) */
+  const cancelLink = () => {
+    if (drag.current?.mode === 'link') drag.current = null;
+    setLinkDraft(null);
+  };
+  /** 관계 잇기: 부모의 기본키를 자식에 더한다(비식별). 새 관계를 골라 두어 작은 창에서 바로 식별로 바꿀 수 있다 */
+  const connect = (child: string, parentTable: string) => {
+    setLinkDraft(null);
+    const ed = guard();
+    if (!ed) return;
+    const r = withFrozen(ed, () => ed.addRelationship(child, parentTable, false));
+    if (!r.ok) {
+      toast(r.message, 'error');
+      return;
+    }
+    setMenu(null);
+    setSelection({ kind: 'link', id: r.link });
+  };
+  /** 고른 관계를 식별이나 비식별로 바꾼다 */
+  const setLinkIdentifying = (id: string, identifying: boolean) => {
+    const link = model.links.find((l) => l.id === id);
+    const ed = guard();
+    if (!link || !ed || link.identifying === identifying) return;
+    report(withFrozen(ed, () => ed.setIdentifying(link.child.table, link.columns, identifying)));
+  };
+  // 글에 오류가 생기면 끌던 관계를 그만둔다
+  useEffect(() => {
+    if (blocked) cancelLink();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocked]);
+  // 끄는 동안에는 포커스가 어디 있든 Esc로 그만둔다
+  const dragging = draft !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancelLink();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
+
+  const deleteSelected = () => {
+    if (!selected) return;
+    if (selected.kind === 'table') deleteTable(selected.table);
+    else deleteLink(selected.id);
+  };
+
+  // ───────────── 포인터 ─────────────
+
+  const drag = useRef<Drag | null>(null);
+  const tableOf = (el: Element | null): string | null =>
+    el && typeof el.closest === 'function' ? (el.closest('[data-table]')?.getAttribute('data-table') ?? null) : null;
+  /** 포인터 아래 요소(포인터를 잡고 있으면 이벤트 대상은 그림 전체라서 자리로 찾는다) */
+  const hitAt = (e: PointerEvent<SVGSVGElement>): Element | null => {
+    const fromPoint = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.clientX || 0, e.clientY || 0) : null;
+    return fromPoint && rootRef.current?.contains(fromPoint) ? fromPoint : (e.target as Element | null);
+  };
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (placing) {
+      e.stopPropagation();
+      // 누르기의 기본 동작(그림에 포커스)이 새 테이블 이름 입력칸의 포커스를 빼앗지 않게 한다
+      e.preventDefault();
+      if (e.button !== 0 && e.button !== undefined) {
+        setPlacing(null);
+        return;
+      }
+      const p = toWorld(e.clientX || 0, e.clientY || 0);
+      setPlacing(null);
+      addTableAt({ x: p.x - NEW_BOX.w / 2, y: p.y - B.headerHeight / 2 });
+      return;
+    }
     if (e.button !== 0 && e.button !== undefined) return;
-    // 입력칸 안의 누르기는 글자 고르기다(화면을 끌지 않는다)
+    // 입력칸 안의 누르기는 글자 고르기다(화면을 끌지 않는다). 그림 위 버튼은 버튼이 처리한다
     const el = e.target as Element | null;
-    if (el && typeof el.closest === 'function' && el.closest('.ie-edit')) return;
-    drag.current = { id: e.pointerId, x: e.clientX || 0, y: e.clientY || 0, moved: 0, target: e.target };
+    if (el && typeof el.closest === 'function' && el.closest('.ie-edit, .ie-ctl')) return;
+    const x = e.clientX || 0;
+    const y = e.clientY || 0;
+    const base = { id: e.pointerId, x, y, sx: x, sy: y, moved: 0, target: e.target };
+    // 연결 점: 끌어서 다른 테이블에 놓으면 관계를 잇는다(끈 테이블이 부모)
+    const dot = editor && el && typeof el.closest === 'function' ? el.closest('[data-connect-from]') : null;
+    const from = dot?.getAttribute('data-connect-from') ?? null;
+    if (dot && from && baseBoxes[from]) {
+      e.stopPropagation();
+      if (blocked) {
+        toast(blocked, 'error');
+        return;
+      }
+      const side = dot.getAttribute('data-side');
+      const start = connectDots(baseBoxes[from], viewRef.current.zoom).find((p) => p.side === side) ?? { x: baseBoxes[from].x, y: baseBoxes[from].y };
+      setMenu(null);
+      setLinkDraft({ from, start: { x: start.x, y: start.y }, to: toWorld(x, y), target: null });
+      drag.current = { ...base, mode: 'link', table: from };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      return;
+    }
+    // 상자 둘레의 투명한 자리는 상자가 아니다(화면 이동)
+    const onReach = el && typeof el.closest === 'function' && el.classList?.contains('ie-table-reach');
+    const table = editor && !onReach ? tableOf(el) : null;
+    if (table && baseBoxes[table]) {
+      drag.current = { ...base, mode: 'table', table, origin: { x: baseBoxes[table].x, y: baseBoxes[table].y } };
+    } else drag.current = { ...base, mode: 'pan' };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    const x = e.clientX || 0;
+    const y = e.clientY || 0;
+    if (placing) {
+      setPlacing({ at: toWorld(x, y) });
+      return;
+    }
     const d = drag.current;
     if (!d || d.id !== e.pointerId) return;
-    const dx = (e.clientX || 0) - d.x;
-    const dy = (e.clientY || 0) - d.y;
-    drag.current = { ...d, x: e.clientX || 0, y: e.clientY || 0, moved: d.moved + Math.abs(dx) + Math.abs(dy) };
-    setViewport((v) => panViewport(v, dx, dy));
+    if (d.mode === 'link') {
+      const hit = tableOf(hitAt(e));
+      const target = hit && hit !== d.table && baseBoxes[hit] ? hit : null;
+      const to = toWorld(x, y);
+      setLinkDraft((cur) => (cur ? { ...cur, to, target } : cur));
+      drag.current = { ...d, x, y, moved: d.moved + Math.abs(x - d.x) + Math.abs(y - d.y) };
+      return;
+    }
+    const dx = x - d.x;
+    const dy = y - d.y;
+    drag.current = { ...d, x, y, moved: d.moved + Math.abs(dx) + Math.abs(dy) };
+    if (d.mode === 'pan') setViewport((v) => panViewport(v, dx, dy));
+    else if (d.mode === 'table' && drag.current.moved > CLICK_SLOP) {
+      const z = viewRef.current.zoom;
+      let nx = d.origin!.x + (x - d.sx) / z;
+      let ny = d.origin!.y + (y - d.sy) / z;
+      const box = baseBoxes[d.table!];
+      if (box && useUi.getState().snapEnabled && !e.altKey) {
+        const others = Object.entries(baseBoxes)
+          .filter(([n]) => n !== d.table)
+          .map(([, b]) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+        const snap = computeSnap({ x: nx, y: ny, w: box.w, h: box.h }, others, SNAP_DISTANCE / z);
+        nx += snap.dx;
+        ny += snap.dy;
+        setGuides(snap.guides);
+      } else setGuides((g) => (g.length ? [] : g));
+      const next = { table: d.table!, x: Math.round(nx), y: Math.round(ny) };
+      movingRef.current = next;
+      setMoving(next);
+    }
   };
   const endDrag = () => {
     drag.current = null;
+    movingRef.current = null;
+    setGuides([]);
+    setMoving(null);
+    setLinkDraft(null);
   };
   const onPointerUp = (e: PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
     drag.current = null;
-    if (!d || d.id !== e.pointerId || d.moved > CLICK_SLOP) return;
+    if (!d || d.id !== e.pointerId) return;
+    const x = e.clientX || 0;
+    const y = e.clientY || 0;
+    const click = d.moved <= CLICK_SLOP;
+    if (d.mode === 'table') {
+      setSelection({ kind: 'table', table: d.table! });
+      if (!click) {
+        // 놓을 때 한 번만 방 문서에 적는다(팀원에게 이때 보인다)
+        const z = viewRef.current.zoom;
+        const last = movingRef.current;
+        const at = last && last.table === d.table ? { x: last.x, y: last.y } : { x: Math.round(d.origin!.x + (x - d.sx) / z), y: Math.round(d.origin!.y + (y - d.sy) / z) };
+        movingRef.current = null;
+        setGuides([]);
+        setMoving(null);
+        editor?.moveTables({ ...frozen(), [d.table!]: at });
+        return;
+      }
+    } else if (d.mode === 'link') {
+      // 다른 테이블 위에 놓으면 잇고(놓은 테이블이 자식), 빈 곳이나 같은 테이블에 놓으면 그만둔다
+      const hit = tableOf(hitAt(e));
+      if (hit && hit !== d.table && baseBoxes[hit]) connect(hit, d.table!);
+      else setLinkDraft(null);
+      return;
+    } else {
+      if (!click) return;
+      const el = d.target as Element | null;
+      const linkId = el && typeof el.closest === 'function' ? el.closest('[data-link-id]')?.getAttribute('data-link-id') : null;
+      if (editor && linkId) {
+        setSelection({ kind: 'link', id: linkId });
+        return;
+      }
+      if (!tableOf(el)) {
+        setSelection(null);
+        return;
+      }
+    }
     // 누르기: 누른 자리(끌기를 위해 포인터를 잡기 전의 대상)의 칸을 고친다
     const el = d.target as Element | null;
     if (!editor || !el || typeof el.closest !== 'function') return;
@@ -823,6 +1401,21 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
       return;
     }
     if (mod || e.altKey) return;
+    if (editor && e.key === 'Escape') {
+      // 끌던 관계, 고른 것 순서로 하나씩 그만둔다
+      if (draft) cancelLink();
+      else if (selected) setSelection(null);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (editor && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteSelected();
+      return;
+    }
     const step = 48;
     const moves: Record<string, [number, number]> = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
     const m = moves[e.key];
@@ -834,11 +1427,36 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
     e.preventDefault();
   };
 
+  const linkLabel = (l: { child: { table: string }; parent: { table: string } }) => t('relView.ie.linkLabel', { child: l.child.table, parent: l.parent.table });
+  const selectedLink = selected?.kind === 'link' ? model.links.find((l) => l.id === selected.id) : undefined;
+  const selectedRoute = selectedLink ? routes.get(selectedLink.id) : undefined;
+  const targetBox = draft?.target ? boxes[draft.target] : undefined;
+
+  /** 도구 줄 버튼. pressed가 있으면 켜고 끄는 도구다 */
+  const toolButton = (opts: { id: string; label: string; icon: ReactNode; pressed?: boolean; disabled?: string | null; onClick: () => void }) => (
+    <button
+      key={opts.id}
+      type="button"
+      className={`btn btn-ghost btn-icon ie-tool${opts.pressed ? ' is-active' : ''}${opts.disabled ? ' is-disabled' : ''}`}
+      data-testid={`ie-tool-${opts.id}`}
+      aria-label={opts.label}
+      title={opts.disabled ?? opts.label}
+      aria-pressed={opts.pressed}
+      aria-disabled={opts.disabled ? true : undefined}
+      onClick={() => {
+        if (opts.disabled) toast(opts.disabled, 'error');
+        else opts.onClick();
+      }}
+    >
+      {opts.icon}
+    </button>
+  );
+
   return (
-    <div className="ie-wrap" data-testid="ie-diagram">
+    <div className="ie-wrap" data-testid="ie-diagram" data-linking={draft ? 'true' : undefined}>
       <div
         ref={rootRef}
-        className="ie-stage"
+        className={`ie-stage${moving ? ' is-moving' : ''}${draft ? ' is-linking' : ''}${placing ? ' is-placing' : ''}`}
         tabIndex={0}
         role="group"
         aria-label={t('relView.ie.label')}
@@ -847,6 +1465,7 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
       >
         <span id="ie-keys-hint" className="sr-only">
           {t('relView.ie.keysHint')}
+          {editor ? ` ${t('relView.ie.editKeysHint')}` : ''}
         </span>
         <svg
           className="ie-svg"
@@ -856,25 +1475,57 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={endDrag}
+          onPointerLeave={() => setPlacing((cur) => (cur && cur.at ? { at: null } : cur))}
         >
+          {showGrid && <GridDots viewport={view} patternId="ie-grid-pattern" />}
           <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
+            <GuideLines guides={guides} />
+            {placing?.at && (
+              <g className="ie-ghost" data-testid="ie-ghost" transform={`translate(${placing.at.x - NEW_BOX.w / 2} ${placing.at.y - B.headerHeight / 2})`} pointerEvents="none">
+                <rect width={NEW_BOX.w} height={NEW_BOX.h} rx={4} />
+                <line x1={0} y1={B.headerHeight} x2={NEW_BOX.w} y2={B.headerHeight} />
+                <line x1={0} y1={B.headerHeight + COLHEAD_H} x2={NEW_BOX.w} y2={B.headerHeight + COLHEAD_H} />
+              </g>
+            )}
             <g className="ie-links">
               {links.map((l) => {
                 const route = routes.get(l.id);
                 if (!route) return null;
                 const first = route.points[0];
                 const last = route.points[route.points.length - 1];
+                const isSelected = selected?.kind === 'link' && selected.id === l.id;
                 return (
                   <g
                     key={l.id}
-                    className="ie-link"
+                    className={`ie-link${isSelected ? ' is-selected' : ''}`}
                     data-link-id={l.id}
                     data-child={l.child.table}
                     data-parent={l.parent.table}
                     data-identifying={l.identifying ? 'true' : 'false'}
                     data-child-end={endKind(l.child)}
                     data-parent-end={endKind(l.parent)}
+                    data-selected={isSelected ? 'true' : undefined}
+                    role={editor ? 'button' : undefined}
+                    tabIndex={editor ? 0 : undefined}
+                    aria-label={editor ? linkLabel(l) : undefined}
+                    aria-pressed={editor ? isSelected : undefined}
+                    onFocus={editor ? () => setSelection({ kind: 'link', id: l.id }) : undefined}
                   >
+                    {/* 가는 선도 누르기 쉽게 넓고 투명한 선을 깐다 */}
+                    {editor && <path className="ie-link-hit" d={polylinePath(route.points)} />}
+                    {/* 까마귀발 같은 선 끝 기호도 누르기 쉽게 넓고 투명한 선을 깐다 */}
+                    {editor &&
+                      [...endMarks(l.child, first, route.fromDir), ...endMarks(l.parent, last, route.toDir)].map((m, i) =>
+                        m.type === 'bar' ? (
+                          <line key={`h${i}`} className="ie-link-hit" x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} />
+                        ) : m.type === 'circle' ? (
+                          <circle key={`h${i}`} className="ie-link-hit" cx={m.cx} cy={m.cy} r={m.r} />
+                        ) : (
+                          <path key={`h${i}`} className="ie-link-hit" d={m.d} />
+                        ),
+                      )}
+                    {/* 올려 두면 ERD 선처럼 옅은 파란 후광 */}
+                    {editor && <path className="ie-link-glow" d={polylinePath(route.points)} />}
                     <path className={`ie-link-line${l.identifying ? '' : ' is-dashed'}`} d={polylinePath(route.points)} />
                     <g className="ie-end" data-end="child" data-kind={endKind(l.child)}>
                       {endMarks(l.child, first, route.fromDir).map((m, i) => (
@@ -897,17 +1548,114 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
                   table={table}
                   typeOptions={typeOptions}
                   box={boxes[table.name]}
-                  editor={editor}
+                  editor={boxEditor}
                   editing={editingAlive && editing!.table === table.name ? editing : null}
                   onEdit={onEdit}
                   onActivate={activate}
+                  selected={(selected?.kind === 'table' && selected.table === table.name) || draft?.from === table.name}
+                  structure={
+                    editor
+                      ? {
+                          blocked,
+                          onAddColumn: () => addColumn(table.name),
+                          onDelete: () => deleteTable(table.name),
+                          onDeleteColumn: (column) => deleteColumn(table.name, column),
+                        }
+                      : undefined
+                  }
+                  onFocusTable={editor ? () => setSelection({ kind: 'table', table: table.name }) : undefined}
+                  connectable={Boolean(editor) && !blocked}
+                  zoom={view.zoom}
                 />
               ) : null,
+            )}
+            {draft && targetBox && (
+              // 놓을 수 있는 테이블(ERD 캔버스의 연결 후보 표시처럼)
+              <rect
+                className="ie-draft-target"
+                data-testid="ie-draft-target"
+                x={targetBox.x - 4 / view.zoom}
+                y={targetBox.y - 4 / view.zoom}
+                width={targetBox.w + 8 / view.zoom}
+                height={targetBox.h + 8 / view.zoom}
+                rx={4 / view.zoom}
+              />
+            )}
+            {draft && (
+              // 고무줄 선은 끈 연결 점에서 시작한다. 새 관계는 비식별이라 점선
+              <g className="ie-draft" pointerEvents="none">
+                <line
+                  className="ie-rubber is-dashed"
+                  data-testid="ie-rubber"
+                  data-from={draft.from}
+                  x1={draft.start.x}
+                  y1={draft.start.y}
+                  x2={draft.to.x}
+                  y2={draft.to.y}
+                />
+                <circle className="ie-connect-dot-mark is-active" cx={draft.start.x} cy={draft.start.y} r={CONNECT_DOT_RADIUS / view.zoom} />
+              </g>
             )}
           </g>
         </svg>
       </div>
-      {overlay && <div className="ie-overlay">{overlay}</div>}
+      {model.tables.length === 0 && (
+        <div className="ie-empty" data-testid="ie-empty">
+          {editor ? (
+            <div className="ie-empty-card">
+              <p className="ie-empty-title">{t('relView.ie.emptyTitle')}</p>
+              <p className="ie-empty-body">{blocked ?? t('relView.ie.emptyBody')}</p>
+              <button
+                type="button"
+                className={`btn btn-primary ie-empty-add${blocked ? ' is-disabled' : ''}`}
+                data-testid="ie-empty-add"
+                aria-disabled={blocked ? true : undefined}
+                title={blocked ?? undefined}
+                onClick={() => addTableAt(spotInView())}
+              >
+                {icons.plus}
+                {t('relView.ie.tool.addTable')}
+              </button>
+            </div>
+          ) : (
+            <p className="ie-empty-body">{t('relView.empty')}</p>
+          )}
+        </div>
+      )}
+      {(editor || overlay) && (
+        <div className="ie-overlay">
+          {editor && (
+            <div className="ie-tools" role="toolbar" aria-label={t('relView.ie.tools')} data-testid="ie-tools">
+              {toolButton({ id: 'add-table', label: t('relView.ie.tool.addTable'), icon: ieIcons.table, pressed: placing !== null, disabled: blocked, onClick: startPlacing })}
+              {tools && (
+                <>
+                  <span className="ie-tools-sep" aria-hidden="true" />
+                  {tools}
+                </>
+              )}
+            </div>
+          )}
+          {overlay}
+        </div>
+      )}
+      {editor && selectedLink && selectedRoute && (
+        <LinkPopover
+          label={linkLabel(selectedLink)}
+          mid={(() => {
+            const mid = midpointOf(selectedRoute.points);
+            return { x: view.x + mid.x * view.zoom, y: view.y + mid.y * view.zoom };
+          })()}
+          obstacles={Object.values(boxes).map((b) => ({ x: view.x + b.x * view.zoom, y: view.y + b.y * view.zoom, w: b.w * view.zoom, h: b.h * view.zoom }))}
+          line={selectedRoute.points.map((p) => ({ x: view.x + p.x * view.zoom, y: view.y + p.y * view.zoom }))}
+          area={size}
+          blocked={blocked}
+          identifying={selectedLink.identifying}
+          onIdentifying={(v) => setLinkIdentifying(selectedLink.id, v)}
+          dropColumns={dropColumns}
+          onDropColumns={setDropColumns}
+          onDelete={() => deleteLink(selectedLink.id)}
+        />
+      )}
       {editor && menu && menuColumn && (
         <CellMenu
           key={`${menu.kind}|${menu.table}|${menu.column}|${menu.fk ? 'fk' : ''}`}
@@ -966,34 +1714,179 @@ export function IeDiagram({ model, layout, editor, typeOptions = [], compactLege
           )}
         </CellMenu>
       )}
-      <div className="ie-zoom" role="group" aria-label={t('relView.ie.zoomLabel')}>
-        <button type="button" className="btn btn-icon" aria-label={t('common.zoomIn')} title={t('common.zoomIn')} onClick={() => zoomCenter(1.25)}>
-          {icons.plus}
-        </button>
-        <button type="button" className="btn btn-icon" aria-label={t('common.zoomOut')} title={t('common.zoomOut')} onClick={() => zoomCenter(0.8)}>
+      <div className="panel zoom-controls ie-zoom" role="group" aria-label={t('relView.ie.zoomLabel')}>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label={t('common.zoomOut')} title={t('common.zoomOut')} disabled={view.zoom <= MIN_ZOOM} onClick={() => zoomCenter(0.8)}>
           {icons.minus}
         </button>
-        <button type="button" className="btn btn-icon" aria-label={t('common.fit')} title={t('common.fit')} onClick={fit}>
+        <button
+          type="button"
+          className="btn btn-ghost zoom-controls-level"
+          data-testid="ie-zoom-level"
+          title={t('view.zoomReset')}
+          aria-label={t('view.zoomResetLabel', { percent: Math.round(view.zoom * 100) })}
+          onClick={() => zoomCenter(1 / view.zoom)}
+        >
+          {Math.round(view.zoom * 100)}%
+        </button>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label={t('common.zoomIn')} title={t('common.zoomIn')} disabled={view.zoom >= MAX_ZOOM} onClick={() => zoomCenter(1.25)}>
+          {icons.plus}
+        </button>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label={t('common.fit')} title={t('common.fit')} onClick={fit}>
           {icons.fit}
         </button>
       </div>
-      {compact ? (
-        <div className="ie-legend-compact">
-          {legendOpen && <IeLegend id="ie-legend-pop" />}
+    </div>
+  );
+}
+
+/** (추가) 고른 관계 아래의 작은 창: 외래키 컬럼도 지울지 고르고 관계를 지운다(묻는 창 없이) */
+/** 선분이 사각형과 겹치는지(선분 위 점을 촘촘히 찍어 본다) */
+function segmentHitsBox(a: { x: number; y: number }, b: { x: number; y: number }, r: Box): boolean {
+  const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4));
+  for (let i = 0; i <= steps; i++) {
+    const x = a.x + ((b.x - a.x) * i) / steps;
+    const y = a.y + ((b.y - a.y) * i) / steps;
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return true;
+  }
+  return false;
+}
+
+/** 창이 놓일 자리: 관계선 가운데 근처에서 테이블을 가리지 않는 첫 자리. 다 가리면 가장 덜 가리는 자리 */
+function placePopover(
+  mid: { x: number; y: number },
+  w: number,
+  h: number,
+  obstacles: Box[],
+  area: { w: number; h: number },
+  line: Array<{ x: number; y: number }> = [],
+): { left: number; top: number } {
+  const gap = 12;
+  const candidates: Array<{ left: number; top: number }> = [];
+  for (let step = 0; step < 4; step++) {
+    const d = gap + step * 36;
+    candidates.push({ left: mid.x - w / 2, top: mid.y + d });
+    candidates.push({ left: mid.x - w / 2, top: mid.y - d - h });
+    candidates.push({ left: mid.x + d, top: mid.y - h / 2 });
+    candidates.push({ left: mid.x - d - w, top: mid.y - h / 2 });
+  }
+  const clamp = (c: { left: number; top: number }) => ({
+    left: Math.min(Math.max(c.left, 8), Math.max(8, area.w - w - 8)),
+    top: Math.min(Math.max(c.top, 8), Math.max(8, area.h - h - 8)),
+  });
+  const covered = (c: { left: number; top: number }) => {
+    let sum = 0;
+    for (const b of obstacles) {
+      const ox = Math.min(c.left + w, b.x + b.w) - Math.max(c.left, b.x);
+      const oy = Math.min(c.top + h, b.y + b.h) - Math.max(c.top, b.y);
+      if (ox > 0 && oy > 0) sum += ox * oy;
+    }
+    // 고른 선을 가리면 크게 친다(선이 보여야 무엇을 고쳤는지 안다)
+    const pad = 6;
+    const box = { x: c.left - pad, y: c.top - pad, w: w + pad * 2, h: h + pad * 2 };
+    for (let i = 1; i < line.length; i++) if (segmentHitsBox(line[i - 1], line[i], box)) sum += w * h * 4;
+    return sum;
+  };
+  let best = clamp(candidates[0]);
+  let bestCover = Infinity;
+  for (const raw of candidates) {
+    const c = clamp(raw);
+    const cover = covered(c);
+    if (cover === 0) return c;
+    if (cover < bestCover) {
+      best = c;
+      bestCover = cover;
+    }
+  }
+  return best;
+}
+
+function LinkPopover({
+  label,
+  mid,
+  obstacles,
+  line,
+  area,
+  blocked,
+  identifying,
+  onIdentifying,
+  dropColumns,
+  onDropColumns,
+  onDelete,
+}: {
+  label: string;
+  /** 관계선 가운데(화면 좌표) */
+  mid: { x: number; y: number };
+  /** 테이블들의 화면 사각형(가리지 않으려고 피한다) */
+  obstacles: Box[];
+  /** 고른 관계선의 꺾인 점들(화면 좌표). 창이 선을 가리지 않게 피한다 */
+  line: Array<{ x: number; y: number }>;
+  area: { w: number; h: number };
+  blocked: string | null;
+  identifying: boolean;
+  onIdentifying: (identifying: boolean) => void;
+  dropColumns: boolean;
+  onDropColumns: (v: boolean) => void;
+  onDelete: () => void;
+}) {
+  const t = useT();
+  const ref = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const key = `${line.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ')}|${Math.round(mid.x)},${Math.round(mid.y)},${obstacles.map((b) => `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(';')},${area.w},${area.h}`;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const next = placePopover(mid, el.offsetWidth, el.offsetHeight, obstacles, area, line);
+    setAt((cur) => (cur && cur.left === next.left && cur.top === next.top ? cur : next));
+    // key가 같으면 자리도 같다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return (
+    <div
+      ref={ref}
+      className="ie-link-pop"
+      data-testid="ie-link-pop"
+      role="group"
+      aria-label={label}
+      style={at ? { left: at.left, top: at.top } : { left: 0, top: 0, visibility: 'hidden' }}
+    >
+      <div className="ie-link-pop-mode" role="group" aria-label={t('relView.ie.linkKind')}>
+        {([true, false] as const).map((v) => (
           <button
+            key={String(v)}
             type="button"
-            className={`btn ie-legend-toggle${legendOpen ? ' is-active' : ''}`}
-            data-testid="ie-legend-toggle"
-            aria-expanded={legendOpen}
-            aria-controls={legendOpen ? 'ie-legend-pop' : undefined}
-            onClick={() => setLegendOpen((o) => !o)}
+            className={`ie-link-pop-mode-btn${identifying === v ? ' is-active' : ''}${blocked ? ' is-disabled' : ''}`}
+            data-testid={`ie-link-mode-${v ? 'identifying' : 'non-identifying'}`}
+            aria-pressed={identifying === v}
+            aria-disabled={blocked ? true : undefined}
+            title={blocked ?? undefined}
+            onClick={() => {
+              if (blocked) toast(blocked, 'error');
+              else onIdentifying(v);
+            }}
           >
-            {t('relPane.legend.toggle')}
+            {v ? t('relView.ie.identifying') : t('relView.ie.nonIdentifying')}
           </button>
-        </div>
-      ) : (
-        <IeLegend />
-      )}
+        ))}
+      </div>
+      <span className="ie-link-pop-sep" aria-hidden="true" />
+      <label className="ie-link-pop-check">
+        <input type="checkbox" data-testid="ie-link-drop-columns" checked={dropColumns} onChange={(e) => onDropColumns(e.target.checked)} />
+        {t('relView.ie.dropColumns')}
+      </label>
+      <button
+        type="button"
+        className={`btn btn-ghost ie-link-pop-delete${blocked ? ' is-disabled' : ''}`}
+        data-testid="ie-link-delete"
+        aria-disabled={blocked ? true : undefined}
+        title={blocked ?? undefined}
+        onClick={() => {
+          if (blocked) toast(blocked, 'error');
+          else onDelete();
+        }}
+      >
+        {ieIcons.trash}
+        {t('common.delete')}
+      </button>
     </div>
   );
 }

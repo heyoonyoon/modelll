@@ -96,24 +96,24 @@
 .home-pv-mates { display: inline-flex; flex: 0 0 auto; margin-left: auto; padding-left: 6px; }
 .home-pv-mates b { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -6px; border: 2px solid var(--h-paper); border-radius: 50%; color: #fff; font-size: 10px; font-weight: 500; }
 .home-pv-share { display: inline-flex; flex: 0 0 auto; align-items: center; height: 26px; padding: 0 10px; border-radius: 6px; background: #2563eb; color: #fff; font-size: 11px; font-weight: 500; }
-.home-pv-split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: 164px 268px; transition: opacity 400ms var(--h-ease); }
+.home-pv-split { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 432px; transition: opacity 400ms var(--h-ease); }
 .home-pv-split.is-leaving { opacity: 0; }
+/* ERD와 IE는 같은 크기의 두 칸이다 */
 .home-pv-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.home-pv-pane.is-erd { grid-row: 1 / span 2; border-right: 1px solid var(--h-line); }
-.home-pv-pane.is-ie { border-top: 1px solid var(--h-line); }
+.home-pv-pane.is-erd { border-right: 1px solid var(--h-line); }
 /* VS Code식 탭 줄 */
 .home-pv-tabs { display: flex; flex: 0 0 auto; height: 28px; border-bottom: 1px solid var(--h-line); background: #f7f7f8; }
-.home-pv-tab { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-right: 1px solid var(--h-line); color: var(--h-muted); font-size: 11px; white-space: nowrap; transition: background-color 200ms var(--h-ease), color 200ms var(--h-ease); }
-.home-pv-tab.is-hover { background: #ededef; color: var(--h-text); }
+.home-pv-tab { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 0 10px; border-right: 1px solid var(--h-line); color: var(--h-muted); font-size: 11px; white-space: nowrap; }
 .home-pv-tab.is-active { margin-bottom: -1px; background: var(--h-paper); color: var(--h-text); }
 .home-pv-tab > svg { flex: 0 0 auto; }
 .home-pv-tab > i { margin-left: 2px; color: var(--h-muted); font-style: normal; }
-/* ERD: 점 무늬 캔버스와 떠 있는 도구 막대 */
+/* 두 칸 모두 점 무늬 캔버스와 떠 있는 도구 막대 */
 .home-pv-canvas { position: relative; flex: 1 1 auto; min-height: 0; background-color: #fafafa; background-image: radial-gradient(rgba(23, 23, 23, 0.12) 1px, transparent 1px); background-size: 16px 16px; }
 .home-pv-tools { position: absolute; left: 8px; top: 8px; z-index: 1; display: flex; flex-direction: column; gap: 2px; padding: 3px; border: 1px solid var(--h-line); border-radius: 8px; background: var(--h-paper); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); color: var(--h-text-2); }
-.home-pv-tool { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; }
+.home-pv-tool { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; transition: background-color 150ms var(--h-ease), color 150ms var(--h-ease); }
+.home-pv-tool.is-hover { background: #f1f1f3; color: var(--h-text); }
 .home-pv-tool.is-active { background: #e8efff; color: #2563eb; }
-.home-pv-erd { position: absolute; top: 12px; right: 8px; bottom: 12px; left: 44px; display: block; width: calc(100% - 52px); height: calc(100% - 24px); overflow: visible; }
+.home-pv-art { position: absolute; top: 12px; right: 8px; bottom: 12px; left: 44px; display: block; width: calc(100% - 52px); height: calc(100% - 24px); overflow: visible; }
 /* 새로 놓인 도형은 제자리에서 살짝 커지며 나타나고, 새 선은 시작한 쪽에서부터 그어진다 */
 .home-pv-node.is-new { transform-box: fill-box; transform-origin: center; animation: home-pv-pop 100ms var(--h-ease) both; }
 .home-pv-edge.is-new path { stroke-dasharray: 420; stroke-dashoffset: 420; animation: home-pv-draw 260ms var(--h-ease-draw) forwards; }
@@ -127,38 +127,13 @@
   to { stroke-dashoffset: 0; }
 }
 /* 이름표가 달린 포인터(그림 좌표) */
-.home-pv-split { position: relative; }
 .home-pv-cursors { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
 /* 누른 자리에 잠깐 퍼지는 고리. 상태가 바뀌는 순간마다 누가 눌렀는지 보인다 */
 .home-pv-ring { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px solid; border-radius: 50%; }
 .home-pv-hcursor { position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; }
 .home-pv-hcursor > svg { position: absolute; left: -1px; top: -1px; }
 .home-pv-hcursor > span { position: absolute; left: 11px; top: 14px; padding: 0 6px; border-radius: 6px; border-top-left-radius: 3px; color: #fff; font-size: 10px; line-height: 16px; font-weight: 500; white-space: nowrap; }
-/* 관계 모델 편집기: 밑줄 버튼과 줄 번호 */
-.home-pv-rel { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
-.home-pv-bar { display: flex; flex: 0 0 auto; align-items: center; height: 28px; padding: 0 6px; border-bottom: 1px solid var(--h-line); }
-.home-pv-btn { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border-radius: 4px; color: var(--h-text-2); font-size: 11px; transition: background-color 150ms var(--h-ease), color 150ms var(--h-ease); }
-.home-pv-btn.is-hover { background: #f1f1f3; color: var(--h-text); }
-.home-pv-btn.is-pressed { background: #e8efff; color: #2563eb; }
-.home-pv-code { flex: 1 1 auto; min-height: 0; padding: 6px 8px 6px 0; overflow: hidden; font-family: var(--font-mono); font-size: 11px; line-height: 18px; }
-.home-pv-line { display: grid; grid-template-columns: 26px minmax(0, 1fr); }
-.home-pv-ln { padding-right: 8px; color: #a3a3a3; text-align: right; font-variant-numeric: tabular-nums; }
-.home-pv-text { padding-left: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.home-pv-word { border-radius: 2px; transition: background-color 150ms var(--h-ease); }
-.home-pv-word.is-ul { text-decoration: underline; text-decoration-thickness: 1.2px; text-underline-offset: 3px; }
-.home-pv-word .is-sel { border-radius: 2px; background: rgba(37, 99, 235, 0.2); }
-.home-pv-caret { display: inline-block; width: 1.5px; height: 14px; margin-left: 1px; vertical-align: -3px; background: var(--c); }
-/* 글을 적는 팀원의 이름표 */
-.home-pv-caret { position: relative; }
-.home-pv-caret::after { content: attr(data-name); position: absolute; left: 0; bottom: 100%; padding: 0 4px; border-radius: 3px 3px 3px 0; background: var(--c); color: #fff; font-family: var(--font); font-size: 9px; line-height: 13px; font-weight: 500; white-space: nowrap; }
-/* IE와 SQL: DBMS 선택 줄 아래에 그림이나 글 */
-.home-pv-head { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--h-line); color: var(--h-text-2); font-size: 11px; }
-.home-pv-select { position: relative; display: inline-flex; align-items: center; height: 22px; padding: 0 22px 0 8px; border: 1px solid var(--h-line-strong); border-radius: 5px; color: var(--h-text); }
-.home-pv-select::after { content: ''; position: absolute; right: 8px; top: 7px; width: 4px; height: 4px; border-right: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor; transform: rotate(45deg); }
-.home-pv-body { flex: 1 1 auto; min-height: 0; padding: 6px; background: #f7f7f8; }
-.home-pv-ie { display: block; width: 100%; height: 100%; border: 1px solid var(--h-line); border-radius: 6px; background: var(--h-paper); }
-.home-pv-sql { height: 100%; margin: 0; padding: 8px 10px; overflow: hidden; border: 1px solid var(--h-line); border-radius: 6px; background: var(--h-paper); font-family: var(--font-mono); font-size: 10.5px; line-height: 17px; color: var(--h-text); white-space: pre; animation: home-fade 300ms var(--h-ease) both; }
-/* IE 표: 방 화면의 IE와 같은 짜임 */
+/* IE 표: 방 화면의 IE와 같은 짜임(머리, 칸 이름 줄, 기본키 묶음, 구분선) */
 .home-ie-box { fill: var(--h-paper); stroke: var(--h-text); stroke-width: 1.2; }
 .home-ie-head { fill: #f1f1f3; }
 .home-ie-line { stroke: var(--h-text); stroke-width: 1; }
@@ -172,13 +147,25 @@
 .home-ie-null { font-family: var(--font-mono); font-size: 10px; dominant-baseline: central; fill: #a3a3a3; animation: home-fade 300ms var(--h-ease) both; }
 .home-ie-null.is-set { fill: var(--h-text); }
 .home-ie-edit { fill: none; stroke: #2563eb; stroke-width: 1.5; }
+.home-pv-ie .home-ie-box { fill: var(--h-paper); }
+.home-pv-ie-title { font-size: 13px; font-weight: 700; }
+/* 기본키 밑줄은 글자 폭 그대로(어림한 폭으로 긋지 않는다). 밑줄은 글자 기준선에 붙으므로 가운데 맞춤 대신 기준선으로 놓는다 */
+.home-pv-ie .home-ie-col.is-pk { dominant-baseline: auto; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.home-pv-ie-colhead { fill: #fafbfc; }
+.home-pv-ie-label { font-size: 10px; font-weight: 600; dominant-baseline: central; fill: #a3a3a3; }
+.home-pv-ie-label.is-center { text-anchor: middle; }
+.home-pv-ie-row { stroke: var(--h-line); stroke-width: 1; }
+/* 연결 점, 끌고 있는 고무줄 선, 놓을 수 있는 표(방 화면의 IE와 같은 파란 표시) */
+.home-pv-dot { fill: var(--h-paper); stroke: #2563eb; stroke-width: 1.5; animation: home-fade 150ms var(--h-ease) both; }
+.home-pv-dot.is-on { fill: #2563eb; }
+.home-pv-rubber { stroke: #2563eb; stroke-width: 1.5; stroke-dasharray: 6 4; }
+.home-pv-target { fill: rgba(37, 99, 235, 0.06); stroke: #2563eb; stroke-width: 2; animation: home-fade 120ms var(--h-ease) both; }
 /* 칸 메뉴: 방 화면의 메뉴(PaneMenu)와 같은 흰 판, 옅은 테두리, 그림자, 올려 둔 항목의 회색 바탕 */
 .home-pv-menu { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.06)) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.12)); animation: home-fade 150ms var(--h-ease) both; }
 .home-pv-menu-box { fill: var(--h-paper); stroke: var(--h-line-strong); stroke-width: 1; }
 .home-pv-menu-hover { fill: #f1f1f3; }
 .home-pv-menu-text { font-size: 11px; dominant-baseline: central; fill: var(--h-text); }
 .home-pv-menu-text.is-mono { font-family: var(--font-mono); font-size: 10.5px; }
-.home-pv-menu-check { fill: none; stroke: var(--h-text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .home-ie-link { fill: none; stroke: var(--h-text); stroke-width: 1.2; stroke-dasharray: 5 3; }
 .home-ie-mark { fill: none; stroke: var(--h-text); stroke-width: 1.2; stroke-linecap: round; }
 .home-sql-keyword { color: #0b57d0; font-weight: 600; }
@@ -301,11 +288,53 @@
 .home-way { display: flex; flex-direction: column; min-width: 0; padding: 32px; border: 1px solid var(--h-line-strong); border-radius: 16px; background: var(--h-card); }
 .home-way-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
 .home-way-body { margin: 10px 0 24px; font-size: 15px; line-height: 24px; color: var(--h-text-2); }
-/* 기존 ERD 옮기기: 기능 카드 아래 넓은 카드 하나. 글은 왼쪽, 복사할 지시문은 오른쪽 */
-.home-migrate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 32px; align-items: center; margin-top: 24px; }
-.home-migrate .home-way-body { margin-bottom: 0; }
-.home-migrate .home-snippet { margin-top: 0; }
-@media (max-width: 900px) { .home-migrate { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+/*
+ * 사용 사례(기존 ERD 옮기기): 연결 방법 카드와 선을 그어 나누고 따로 머리글을 둔다.
+ * 그림은 손그림 사진 → AI → modelll 화면 순서로 놓고, 복사할 지시문은 그 아래에 작게 둔다.
+ */
+.home-uc { margin-top: 80px; padding-top: 64px; border-top: 1px dashed var(--h-line-strong); }
+.home-uc-eyebrow { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--h-line-strong); border-radius: 999px; color: var(--h-text-2); font-size: 12px; line-height: 1; font-weight: 600; }
+.home-uc-title { margin-top: 16px; font-size: clamp(22px, 2vw, 28px); line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; }
+.home-uc-body { margin-top: 12px; max-width: 42rem; font-size: 16px; line-height: 26px; color: var(--h-text-2); }
+.home-uc-fig { display: grid; grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr); align-items: stretch; margin: 32px 0 0; }
+.home-uc-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--h-line-strong); border-radius: 16px; overflow: hidden; }
+.home-uc-bar { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--h-line); background: var(--h-card); color: var(--h-text-2); font-size: 13px; }
+.home-uc-bar > svg { flex: 0 0 auto; color: var(--h-muted); }
+/* 책상 위에 놓인 사진 한 장: 살짝 기울이고 테이프를 붙인다 */
+.home-uc-desk { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; padding: 28px 24px; background: var(--h-raised); }
+.home-uc-paper { position: relative; width: 100%; padding: 14px 12px 10px; border-radius: 3px; background-color: #fdfbf5; background-image: repeating-linear-gradient(to bottom, transparent 0 21px, rgba(59, 130, 246, 0.14) 21px 22px); box-shadow: 0 1px 2px rgba(23, 23, 23, 0.08), 0 8px 24px rgba(23, 23, 23, 0.1); transform: rotate(-2deg); }
+.home-uc-tape { position: absolute; top: -9px; left: 50%; width: 72px; height: 18px; margin-left: -36px; background: rgba(250, 204, 21, 0.35); transform: rotate(3deg); }
+.home-uc-sketch { display: block; width: 100%; height: auto; overflow: visible; }
+.home-uc-sketch-lines path, .home-uc-sketch-shapes > * { fill: none; stroke: #3f3f46; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.home-uc-sketch-shapes.is-second > * { stroke-opacity: 0.35; stroke-width: 1.1; }
+.home-uc-sketch-text text { fill: #27272a; font-size: 14px; font-style: italic; font-weight: 500; }
+/* 가운데의 AI: 왼쪽 그림에서 오른쪽 화면으로 흐르는 선 위에 칩 하나 */
+.home-uc-ai { display: flex; align-items: center; justify-content: center; }
+.home-uc-flow { flex: 1 1 auto; height: 0; border-top: 1.5px dashed var(--h-line-strong); }
+.home-uc-flow.is-end { position: relative; }
+.home-uc-flow.is-end::after { content: ''; position: absolute; top: -5.5px; right: 0; width: 8px; height: 8px; border-top: 1.5px solid var(--h-muted); border-right: 1.5px solid var(--h-muted); transform: rotate(45deg); }
+.home-uc-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--h-text); color: #fff; font-size: 13px; line-height: 1; font-weight: 600; }
+.home-uc-canvas { justify-content: center; padding: 24px 20px; }
+/* 지시문은 그림 아래에 이름표와 함께 작게 둔다 */
+.home-uc-prompt { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 24px; }
+.home-uc-prompt-label { padding-top: 10px; color: var(--h-muted); font-size: 13px; line-height: 20px; font-weight: 500; }
+.home-uc-prompt .home-snippet { margin-top: 0; padding: 8px 8px 8px 14px; }
+.home-uc-prompt .home-snippet-text { font-size: 12px; line-height: 19px; }
+@media (max-width: 1080px) {
+  .home-uc-fig { grid-template-columns: minmax(0, 1fr); }
+  .home-uc-ai { flex-direction: column; height: 88px; }
+  .home-uc-flow { width: 0; height: auto; border-top: 0; border-left: 1.5px dashed var(--h-line-strong); }
+  .home-uc-flow.is-end::after { top: auto; bottom: 0; right: -5.5px; transform: rotate(135deg); }
+  .home-uc-prompt { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .home-uc-prompt-label { padding-top: 0; }
+}
+@media (max-width: 720px) {
+  .home-uc { margin-top: 56px; padding-top: 48px; }
+  .home-uc-body { font-size: 15px; line-height: 24px; }
+  .home-uc-fig { margin-top: 24px; }
+  .home-uc-desk { padding: 20px 16px; }
+  .home-uc-canvas { padding: 16px 12px; }
+}
 /* 복사할 글은 위 AI 터미널과 같은 어두운 창에 담아 눈에 띄게 한다 */
 .home-snippet { display: flex; align-items: flex-start; gap: 8px; margin-top: auto; padding: 12px 12px 12px 16px; border-radius: 10px; background: #171717; }
 .home-snippet-text { flex: 1 1 auto; min-width: 0; padding: 4px 0; font-family: var(--font-mono); font-size: 13px; line-height: 21px; color: #f5f5f5; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -499,12 +528,10 @@
   .home-story-logo { font-size: 72px; }
   .home-story-stages { gap: 48px; margin-top: 72px; }
   .home-story-body { font-size: 15px; line-height: 24px; }
-  /* 제품 화면 예시는 세 칸을 세로로 쌓는다 */
+  /* 제품 화면 예시는 ERD와 IE를 같은 높이로 위아래에 쌓는다 */
   .home-pv-saved { display: none; }
-  .home-pv-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: 236px 128px 240px; }
-  .home-pv-pane.is-erd { grid-row: auto; border-right: 0; }
-  .home-pv-pane.is-rel { border-top: 1px solid var(--h-line); }
-  .home-pv-code { font-size: 10.5px; line-height: 17px; }
+  .home-pv-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: 300px 300px; }
+  .home-pv-pane.is-erd { border-right: 0; border-bottom: 1px solid var(--h-line); }
   .home-facts { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .home-start { margin: 40px 0 56px; padding: 28px 20px; border-radius: 16px; }
   .home-notation { padding: 40px 0 64px; }
@@ -535,9 +562,9 @@
 @media (prefers-reduced-motion: reduce) {
   .home-title, .home-lead, .home-actions, .home-pv { animation: none; }
   .home-reveal { opacity: 1; transform: none; transition: none; }
-  .home-pv-node.is-new, .home-pv-edge.is-new path, .home-pv-edge.is-new text, .home-pv-pick, .home-pv-fade, .home-pv-sql, .home-ie-type, .home-ie-null { animation: none; }
+  .home-pv-node.is-new, .home-pv-edge.is-new path, .home-pv-edge.is-new text, .home-pv-pick, .home-pv-fade, .home-pv-dot, .home-pv-target, .home-pv-menu, .home-ie-type, .home-ie-null { animation: none; }
   .home-pv-edge.is-new path { stroke-dasharray: none; stroke-dashoffset: 0; }
-  .home-pv-hcursor, .home-pv-split { transition: none; }
+  .home-pv-hcursor, .home-pv-split, .home-pv-tool { transition: none; }
   .home-ai-fig .home-ai-node, .home-ai-fig .home-ai-edge { opacity: 1 !important; animation: none !important; transition: none !important; }
   .home-story-goo { display: none; }
   .home-story.is-pinned .home-story-stage.is-active .home-story-text { animation: none; }

@@ -13,10 +13,8 @@
 .erd-slot-right > * { max-width: 100%; max-height: 100%; }
 .erd-slot-bottom-left { left: 84px; bottom: 12px; max-width: calc(100% - 96px); align-items: flex-end; }
 .erd-slot-bottom-right { right: 12px; bottom: 12px; align-items: flex-end; }
-/* 미니맵이 보이면 오른쪽 패널이 미니맵을 덮지 않게 아래를 비운다 */
-.erd-pane[data-minimap='on'] .erd-slot-right { bottom: 176px; }
-/* 미니맵이 보일 때 오른쪽 도형 패널을 미니맵과 같은 너비로 맞춘다(미니맵 그림 200px + 테두리) */
-.erd-pane[data-minimap='on'] .inspector { width: 202px; }
+/* 미니맵이 보이면 오른쪽 패널이 미니맵을 덮지 않게 아래를 비운다(미니맵 78px + 테두리 + 여백) */
+.erd-pane[data-minimap='on'] .erd-slot-right { bottom: 104px; }
 
 /* 확대 버튼 묶음이 좁은 pane에서 넘치면 가로로 스크롤한다 */
 .erd-slot-bottom-left .zoom-controls { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
@@ -32,7 +30,6 @@
 /* 확대 버튼 묶음과 겹치지 않게 오른쪽 패널의 아래를 비운다(이 단계에서는 미니맵을 그리지 않는다) */
 .erd-pane[data-size='compact'] .erd-slot-right,
 .erd-pane[data-size='tiny'] .erd-slot-right { bottom: 56px; }
-.erd-pane[data-size='compact'] .inspector,
 .erd-pane[data-size='compact'] .issues-panel,
 .erd-pane[data-size='compact'] .legend { width: 240px; }
 
@@ -42,7 +39,6 @@
 .erd-pane[data-size='tiny'] .toolbar { width: 46px; }
 .erd-pane[data-size='tiny'] .toolbar-scroll { padding: 4px; }
 .erd-pane[data-size='tiny'] .toolbar-btn { width: 36px; height: 32px; }
-.erd-pane[data-size='tiny'] .inspector,
 .erd-pane[data-size='tiny'] .issues-panel,
 .erd-pane[data-size='tiny'] .legend { width: 232px; }
 /* 아주 작은 pane에서는 격자, 붙기, 미니맵 켜고 끄기를 숨기고 확대/축소만 남긴다(격자는 G 키로도 켜고 끈다) */

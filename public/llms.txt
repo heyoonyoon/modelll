@@ -1,0 +1,25 @@
+# modelll
+
+> modelll is a free, open-source, real-time ERD tool. Teams edit the same diagram together through a shared link (no sign-up) in both Chen notation and IE (crow's foot) notation, and AI assistants such as ChatGPT and Claude connect to it through a remote MCP server (https://modelll.app/mcp) or the `modelll` npm CLI to create and edit diagrams while everyone watches. It also generates CREATE TABLE SQL for MySQL, PostgreSQL, and Oracle.
+
+modelll covers the three steps of database modeling in one place:
+
+- Conceptual design: Chen-notation ER diagram (entities, weak entities, relationships, identifying relationships, key, partial key, multivalued and composite attributes, cardinality, total and partial participation, disjoint and overlapping specialization), with notation checks. Export PNG, SVG, clipboard, or JSON.
+- Logical design: the relational model written as text, such as `Student (Student ID, Name, Dept code)` with underlined primary keys and `Foreign Key (...) references Table (...)` lines, drawn live as an IE (crow's foot) diagram where column types and NULL are set.
+- Physical design: CREATE TABLE SQL for MySQL, PostgreSQL, or Oracle. Unset types are flagged, never guessed.
+
+Free, no account, runs in the browser, real-time collaboration (up to 15 people per room), 10 interface languages. Diagrams nobody opens for 30 days are deleted automatically.
+
+## Use
+
+- [modelll app](https://modelll.app/): open it and create a diagram; share the room link to collaborate
+- [Full description for AI tools](https://modelll.app/llms-full.txt): features, notation, MCP and CLI usage, text format, FAQ
+
+## AI integration
+
+- Remote MCP server: `https://modelll.app/mcp` (Streamable HTTP, no sign-in). Tools: create_diagram, read_diagram, update_diagram, validate_diagram, diagram_syntax, diagram_to_sql
+- [CLI on npm](https://www.npmjs.com/package/modelll): `npx -y modelll syntax`, `npx -y modelll new model.mdl`, `pull`, `push`, `validate`, `relational`, `sql`
+
+## Source
+
+- [GitHub repository](https://github.com/heyoonyoon/modelll): MIT-licensed source; can be self-hosted

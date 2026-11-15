@@ -80,12 +80,12 @@ afterEach(() => {
 });
 
 describe('방 화면의 pane 배치', () => {
-  it('처음에는 기본 배치(ERD 옆 한 그룹에 관계 모델, SQL, IE 탭, 관계 모델 보임)를 보이고 캔버스 단축키를 건다', async () => {
+  it('처음에는 기본 배치(ERD 옆 한 그룹에 IE, 관계 모델, SQL 탭, IE 보임)를 보이고 캔버스 단축키를 건다', async () => {
     mount();
-    expect(await screen.findByTestId('pane-relational')).toBeTruthy();
+    expect(await screen.findByTestId('pane-ie')).toBeTruthy();
     expect(isShown('erd')).toBe(true);
-    expect(isShown('relational')).toBe(true);
-    expect(isShown('ie')).toBe(false);
+    expect(isShown('ie')).toBe(true);
+    expect(isShown('relational')).toBe(false);
     expect(isShown('sql')).toBe(false);
     expect(tab('relational').textContent).toContain('관계 모델');
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(4);

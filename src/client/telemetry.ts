@@ -13,7 +13,7 @@ import {
   type TelemetryEvent,
   type TelemetryPayload,
 } from '../shared/telemetry';
-import { RELATIONAL_COLUMNS, RELATIONAL_META, RELATIONAL_TEXT, readRoomDialect } from '../shared/relational/ydoc';
+import { IE_POSITIONS, RELATIONAL_COLUMNS, RELATIONAL_META, RELATIONAL_TEXT, readRoomDialect } from '../shared/relational/ydoc';
 import { getNodesMap } from '../shared/ydoc';
 import type { LayoutNode, LayoutState } from './layout/types';
 import { useUi } from './state/ui';
@@ -144,6 +144,7 @@ export function useRoomTelemetry(roomId: string, doc: Y.Doc, entry: EntryKind, l
     const text = doc.getText(RELATIONAL_TEXT);
     const columns = doc.getMap(RELATIONAL_COLUMNS);
     const meta = doc.getMap(RELATIONAL_META);
+    const positions = doc.getMap(IE_POSITIONS);
     const onNodes = (ev: Y.YEvent<any>) => {
       if (!ev.transaction.local) return;
       for (const change of ev.changes.keys.values()) {
@@ -157,6 +158,10 @@ export function useRoomTelemetry(roomId: string, doc: Y.Doc, entry: EntryKind, l
     const onColumns = (ev: Y.YEvent<any>) => {
       if (ev.transaction.local) trackOnce('ie_edit', roomId);
     };
+    // (추가) IE에서 상자를 옮기거나 자동 정렬한 것도 IE 편집으로 센다
+    const onPositions = (ev: Y.YEvent<any>) => {
+      if (ev.transaction.local && ev.transaction.origin === IE_ORIGIN) trackOnce('ie_edit', roomId);
+    };
     const onMeta = (ev: Y.YEvent<any>) => {
       if (!ev.transaction.local) return;
       const v = readRoomDialect(doc);
@@ -165,11 +170,13 @@ export function useRoomTelemetry(roomId: string, doc: Y.Doc, entry: EntryKind, l
     nodes.observe(onNodes);
     text.observe(onText);
     columns.observe(onColumns);
+    positions.observe(onPositions);
     meta.observe(onMeta);
     return () => {
       nodes.unobserve(onNodes);
       text.unobserve(onText);
       columns.unobserve(onColumns);
+      positions.unobserve(onPositions);
       meta.unobserve(onMeta);
     };
   }, [roomId, doc]);

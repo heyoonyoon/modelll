@@ -2,8 +2,8 @@
  * 도형과 연결선의 기하 계산(순수 함수). [담당: geometry 에이전트]
  * 아래 export의 이름과 시그니처는 다른 모듈이 쓰는 계약이므로 바꾸지 않는다. 내부 구현과 추가 export는 자유.
  */
-import { SIDES, STYLE } from './types';
-import type { EdgeShapeKind, ErdEdge, ErdNode, Point, Rect, Side } from './types';
+import { ANCHORS, SIDES, STYLE, isCorner } from './types';
+import type { Anchor, Corner, EdgeShapeKind, ErdEdge, ErdNode, Point, Rect, Side } from './types';
 
 const EPS = 1e-9;
 /** 같은 두 노드 사이의 선들을 벌리는 간격(제어점 기준) */
@@ -197,9 +197,9 @@ export interface EdgeGeometry {
   /** 선이 지나는 꼭짓점 목록(start부터 end까지). 직선과 곡선은 [start, end] */
   points: Point[];
   /** 실제로 쓰인 source 쪽 면. 면 없이 중심 방향으로 붙는 직선과 곡선은 null */
-  sourceSide: Side | null;
+  sourceSide: Anchor | null;
   /** 실제로 쓰인 target 쪽 면. 면 없이 중심 방향으로 붙는 직선과 곡선은 null */
-  targetSide: Side | null;
+  targetSide: Anchor | null;
   /** 실제로 그릴 선의 SVG path d. 단선이면 1개, 이중선이면 2개(STYLE.doubleGap만큼 떨어진 평행선) */
   paths: string[];
   /** 클릭 판정용 중심선 path d */
@@ -478,8 +478,8 @@ function polylineGeometry(
   source: ErdNode,
   target: ErdNode,
   pts: Point[],
-  sourceSide: Side | null,
-  targetSide: Side | null,
+  sourceSide: Anchor | null,
+  targetSide: Anchor | null,
   prefer: 'start' | 'end' | null,
 ): EdgeGeometry {
   const half = STYLE.doubleGap / 2;
@@ -575,13 +575,26 @@ export function computeEdgeGeometry(
   const shape = edgeShapeOf(edge, source, target, pairCount);
   const pinned = !!(edge.sourceSide || edge.targetSide);
 
+  // (추가) 한쪽 끝이라도 면 사이 자리(모서리, 마름모 변 가운데, 타원 45도)에 붙으면 꺾지 않고 그 자리끼리 곧게 잇는다.
+  // 지정 안 된 끝은 상대 끝점 방향의 외곽선에서 시작한다
+  if (isCorner(edge.sourceSide) || isCorner(edge.targetSide)) {
+    const fixedS = edge.sourceSide ? anchorPoint(source, edge.sourceSide) : null;
+    const fixedT = edge.targetSide ? anchorPoint(target, edge.targetSide) : null;
+    const s0 = fixedS ?? boundaryPoint(source, fixedT ?? nodeCenter(target));
+    const e0 = fixedT ?? boundaryPoint(target, s0);
+    return polylineGeometry(edge, source, target, [s0, e0], edge.sourceSide ?? null, edge.targetSide ?? null, null);
+  }
+  // 여기부터는 붙는 자리가 네 면이거나 없다
+  const sSide = edge.sourceSide as Side | undefined;
+  const tSide = edge.targetSide as Side | undefined;
+
   if (shape === 'elbow') {
     // source/target이 뒤집혀 저장돼도 같은 그림이 나오도록 id 순서로 맞춰 계산한 뒤 되돌린다
     const flip = source.id > target.id;
     const a = flip ? target : source;
     const b = flip ? source : target;
-    const sa = flip ? edge.targetSide : edge.sourceSide;
-    const sb = flip ? edge.sourceSide : edge.targetSide;
+    const sa = flip ? tSide : sSide;
+    const sb = flip ? sSide : tSide;
     const skip = !pinned && siblingCount > 1 ? Math.max(0, Math.min(Math.floor(siblingIndex) || 0, 8)) : 0;
     const route = elbowRoute(a, b, sa, sb, skip);
     const pts = flip ? [...route.points].reverse() : route.points;
@@ -594,8 +607,8 @@ export function computeEdgeGeometry(
     // 엔티티는 변 위에서 미끄러지므로, 마름모 꼭짓점과 조금 어긋나 있어도 선이 비스듬해지지 않는다.
     const flip = source.id > target.id;
     const direct = flip
-      ? directRoute(target, source, edge.targetSide, edge.sourceSide, [], [])
-      : directRoute(source, target, edge.sourceSide, edge.targetSide, [], []);
+      ? directRoute(target, source, tSide, sSide, [], [])
+      : directRoute(source, target, sSide, tSide, [], []);
     if (direct) {
       const pts = flip ? [...direct.points].reverse() : direct.points;
       return polylineGeometry(edge, source, target, pts, flip ? direct.sideB : direct.sideA, flip ? direct.sideA : direct.sideB, null);
@@ -603,17 +616,17 @@ export function computeEdgeGeometry(
     // 그렇게 만나지 못하면 면이 지정된 끝은 고정점에서, 지정 안 된 끝은 상대 끝점 방향의 외곽선에서 시작하는 직선
     let s: Point;
     let e: Point;
-    if (edge.sourceSide && edge.targetSide) {
-      s = anchorPoint(source, edge.sourceSide);
-      e = anchorPoint(target, edge.targetSide);
-    } else if (edge.sourceSide) {
-      s = anchorPoint(source, edge.sourceSide);
+    if (sSide && tSide) {
+      s = anchorPoint(source, sSide);
+      e = anchorPoint(target, tSide);
+    } else if (sSide) {
+      s = anchorPoint(source, sSide);
       e = boundaryPoint(target, s);
     } else {
-      e = anchorPoint(target, edge.targetSide as Side);
+      e = anchorPoint(target, tSide as Side);
       s = boundaryPoint(source, e);
     }
-    return polylineGeometry(edge, source, target, [s, e], edge.sourceSide ?? null, edge.targetSide ?? null, null);
+    return polylineGeometry(edge, source, target, [s, e], sSide ?? null, tSide ?? null, null);
   }
 
   const a = nodeCenter(source);
@@ -805,11 +818,12 @@ export function edgeInRect(geom: EdgeGeometry, rect: Rect): boolean {
  * 도형의 한 면에서 선이 붙는 점. 직사각형은 그 변의 가운데, 마름모는 그 방향 꼭짓점,
  * 타원은 그 방향 끝점, 특수화 원은 원 위의 그 방향 점이다.
  */
-export function anchorPoint(node: ErdNode, side: Side): Point {
+export function anchorPoint(node: ErdNode, side: Anchor): Point {
   const cx = node.x + node.w / 2;
   const cy = node.y + node.h / 2;
   const rx = node.kind === 'spec' ? Math.min(node.w, node.h) / 2 : node.w / 2;
   const ry = node.kind === 'spec' ? Math.min(node.w, node.h) / 2 : node.h / 2;
+  if (isCorner(side)) return cornerPoint(node, side).p;
   switch (side) {
     case 'top':
       return { x: cx, y: cy - ry };
@@ -820,6 +834,45 @@ export function anchorPoint(node: ErdNode, side: Side): Point {
     case 'right':
       return { x: cx + rx, y: cy };
   }
+}
+
+const CORNER_SIGN: Record<Corner, { sx: 1 | -1; sy: 1 | -1 }> = {
+  'top-right': { sx: 1, sy: -1 },
+  'bottom-right': { sx: 1, sy: 1 },
+  'bottom-left': { sx: -1, sy: 1 },
+  'top-left': { sx: -1, sy: -1 },
+};
+
+/**
+ * (추가) 면 사이 자리의 점과 바깥으로 나가는 단위 방향. 직사각형(엔티티, 메모)은 모서리,
+ * 마름모(관계)는 그 변의 가운데, 타원(속성)과 원(특수화)은 45도 자리다.
+ */
+export function cornerPoint(node: ErdNode, corner: Corner): { p: Point; dir: Point } {
+  const { sx, sy } = CORNER_SIGN[corner];
+  const cx = node.x + node.w / 2;
+  const cy = node.y + node.h / 2;
+  let p: Point;
+  let n: Point;
+  if (node.kind === 'attribute' || node.kind === 'spec') {
+    const r = node.kind === 'spec' ? Math.min(node.w, node.h) / 2 : 0;
+    const rx = r || node.w / 2;
+    const ry = r || node.h / 2;
+    p = { x: cx + sx * rx * Math.SQRT1_2, y: cy + sy * ry * Math.SQRT1_2 };
+    n = { x: (sx * Math.SQRT1_2) / (rx || 1), y: (sy * Math.SQRT1_2) / (ry || 1) };
+  } else if (node.kind === 'relationship') {
+    p = { x: cx + (sx * node.w) / 4, y: cy + (sy * node.h) / 4 };
+    n = { x: sx * node.h, y: sy * node.w };
+  } else {
+    p = { x: cx + (sx * node.w) / 2, y: cy + (sy * node.h) / 2 };
+    n = { x: sx, y: sy };
+  }
+  const len = Math.hypot(n.x, n.y) || 1;
+  return { p, dir: { x: n.x / len, y: n.y / len } };
+}
+
+/** (추가) 붙는 자리에서 바깥으로 나가는 단위 방향(네 면과 그 사이 모두) */
+export function anchorDirection(node: ErdNode, anchor: Anchor): Point {
+  return isCorner(anchor) ? cornerPoint(node, anchor).dir : sideDirection(anchor);
 }
 
 /** 면에서 바깥으로 나가는 단위 방향 */
@@ -836,11 +889,11 @@ export function sideDirection(side: Side): Point {
   }
 }
 
-/** 점 p에서 가장 가까운 고정점의 면. maxDist(월드 단위)보다 멀면 null */
-export function nearestSide(node: ErdNode, p: Point, maxDist = Infinity): Side | null {
-  let best: Side | null = null;
+/** 점 p에서 가장 가까운 붙는 자리(네 면과 그 사이 여덟 곳). maxDist(월드 단위)보다 멀면 null */
+export function nearestSide(node: ErdNode, p: Point, maxDist = Infinity): Anchor | null {
+  let best: Anchor | null = null;
   let bestD = maxDist;
-  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+  for (const side of ANCHORS) {
     const a = anchorPoint(node, side);
     const d = Math.hypot(a.x - p.x, a.y - p.y);
     if (d <= bestD) {

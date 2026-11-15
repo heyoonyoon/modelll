@@ -54,14 +54,14 @@ describe('layoutIe', () => {
     expect(layout.width).toBeLessThanOrEqual(IE_BOX.maxRowWidth);
   });
 
-  it('상자 크기: 머리 40, 줄 28(빈 묶음은 반 줄). 너비는 네 칸의 합이고 긴 이름과 타입이 있으면 넓어진다', () => {
+  it('상자 크기: 머리 40, 줄 28(빈 기본키 묶음은 반 줄, 빈 나머지 묶음은 없음). 너비는 네 칸의 합이고 긴 이름과 타입이 있으면 넓어진다', () => {
     const m = model('학생(_학번_, 이름)\n아주아주아주긴이름의테이블(_정말로아주아주아주긴컬럼이름입니다_)\n빈()');
     const base = IE_BOX.keyWidth + IE_BOX.minNameWidth + IE_BOX.minTypeWidth + IE_BOX.nullWidth;
     expect(ieBoxSize(m.tables[0])).toEqual({ w: base, h: 40 + 28 * 2 });
-    // 기본키만 있으면 아래 묶음은 반 줄
-    expect(ieBoxSize(m.tables[1]).h).toBe(40 + 28 + 14);
+    // 기본키만 있으면 아래 묶음은 없다(마지막 행에서 끝난다)
+    expect(ieBoxSize(m.tables[1]).h).toBe(40 + 28);
     expect(ieBoxSize(m.tables[1]).w).toBeGreaterThan(base);
-    expect(ieBoxSize(m.tables[2])).toEqual({ w: base, h: 40 + 14 + 14 });
+    expect(ieBoxSize(m.tables[2])).toEqual({ w: base, h: 40 + 14 });
     const typed = model('학생(_학번_, 이름)', { [columnKey('학생', '이름')]: { type: 'VARCHAR(200) CHARACTER SET utf8mb4' } });
     expect(ieBoxSize(typed.tables[0]).w).toBeGreaterThan(base);
     // 물려받은 타입도 너비에 든다
@@ -88,5 +88,38 @@ describe('layoutIe', () => {
     const m = model(RELATIONAL_SYNTAX_EXAMPLE);
     expect(layoutIe(m)).toEqual(layoutIe(model(RELATIONAL_SYNTAX_EXAMPLE)));
     expect(layoutIe({ tables: [], links: [] })).toEqual({ tables: {}, width: 0, height: 0 });
+  });
+});
+
+describe('layoutIe: 사람이 옮겨 놓은 자리', () => {
+  const m = () => model(RELATIONAL_SYNTAX_EXAMPLE);
+
+  it('자리가 없거나 맞는 테이블이 없으면 예전 배치와 똑같다', () => {
+    expect(layoutIe(m(), {})).toEqual(layoutIe(m()));
+    expect(layoutIe(m(), { nothing: { x: 5, y: 5 } })).toEqual(layoutIe(m()));
+    expect(layoutIe(m(), { student: { x: Number.NaN, y: 5 } } as never)).toEqual(layoutIe(m()));
+  });
+
+  it('옮겨 놓은 테이블만 그 자리(반올림, nameKey로 찾는다)에 놓고 다른 상자는 겹치지 않으면 그대로 둔다', () => {
+    const auto = layoutIe(m());
+    const layout = layoutIe(m(), { student: { x: -4000.4, y: -3000.6 } });
+    expect(layout.tables.Student).toMatchObject({ x: -4000, y: -3001, w: auto.tables.Student.w, h: auto.tables.Student.h });
+    for (const name of Object.keys(auto.tables)) if (name !== 'Student') expect(layout.tables[name]).toEqual(auto.tables[name]);
+    expect(Object.keys(layout.tables)).toEqual(Object.keys(auto.tables));
+  });
+
+  it('자리가 없는 상자가 옮겨 놓은 상자와 겹치면 아래로 내리고, 서로도 겹치지 않는다', () => {
+    const auto = layoutIe(m());
+    const d = auto.tables.Department;
+    // 다른 상자 둘을 Department 자리에 옮겨 놓는다
+    const layout = layoutIe(m(), { course: { x: d.x, y: d.y }, employee: { x: d.x + 10, y: d.y + 10 } });
+    const boxes = Object.values(layout.tables);
+    const placed = boxes.filter((b) => b !== layout.tables.Course && b !== layout.tables.Employee);
+    for (const a of placed) for (const b of boxes) if (a !== b) expect(overlaps(a, b)).toBe(false);
+    expect(layout.tables.Department.y).toBeGreaterThan(d.y);
+    for (const b of boxes) {
+      expect(b.x + b.w).toBeLessThanOrEqual(layout.width);
+      expect(b.y + b.h).toBeLessThanOrEqual(layout.height);
+    }
   });
 });

@@ -96,5 +96,32 @@ export function buildMcpServer(backend: DiagramBackend, hooks: ToolHooks = {}): 
     (args) => tools.sql(args),
   );
 
+  server.registerTool(
+    TOOL_NAMES.getIe,
+    {
+      title: 'Read IE diagram',
+      description: DESCRIPTIONS.getIe,
+      inputSchema: z.object({ room: z.string().describe(ARGUMENTS.room) }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    (args) => tools.getIe(args),
+  );
+
+  server.registerTool(
+    TOOL_NAMES.setIe,
+    {
+      title: 'Set IE diagram',
+      description: DESCRIPTIONS.setIe,
+      inputSchema: z.object({
+        room: z.string().describe(ARGUMENTS.room),
+        // 모양은 도구가 직접 검사해 자리와 함께 알린다(모르는 필드도 걸러 내려고 그대로 받는다). JSON 글로 보내는 클라이언트도 받는다
+        diagram: z.union([z.looseObject({}), z.string()]).describe(ARGUMENTS.diagram),
+      }),
+      // 문서에 없는 테이블은 지워지므로 destructive다. 같은 문서를 다시 보내면 바뀌는 것이 없다
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    (args) => tools.setIe(args),
+  );
+
   return server;
 }

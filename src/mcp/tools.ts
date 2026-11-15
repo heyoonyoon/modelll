@@ -7,6 +7,7 @@ import { formatSummary, httpErrorMessage, problemLine, reportLines } from '../cl
 import { SYNTAX_TEXT } from '../cli/syntax';
 import { applyModel, parseModel, printModel } from '../shared/model';
 import { parseMarkup, toSql } from '../shared/relational';
+import { planIeDocument } from '../shared/relational/ieDocument';
 import type { SqlDialect } from '../shared/relational/userSchema';
 import type { Model } from '../shared/model/types';
 import { validateDiagram } from '../shared/rules';
@@ -35,6 +36,10 @@ export interface DiagramTools {
   validate(args: { text: string }): Promise<ToolResult>;
   syntax(): Promise<ToolResult>;
   sql(args: { room: string; dialect?: SqlDialect }): Promise<ToolResult>;
+  /** (추가) IE 그림을 JSON 문서로 읽는다 */
+  getIe(args: { room: string }): Promise<ToolResult>;
+  /** (추가) IE 그림을 JSON 문서로 통째로 바꾼다. diagram은 객체 또는 그 JSON 글 */
+  setIe(args: { room: string; diagram: unknown }): Promise<ToolResult>;
 }
 
 function ok(lines: string[]): ToolResult {
@@ -147,6 +152,50 @@ export function createDiagramTools(backend: DiagramBackend, hooks: ToolHooks = {
         }
         lines.push('', `SQL (${chosen}):`, result.sql.replace(/\n+$/, ''));
         return ok(lines);
+      }),
+
+    getIe: ({ room }) =>
+      run(async () => {
+        const { url, document, problems } = await backend.ieRead(room);
+        const lines = [
+          document.tables.length === 0
+            ? `${url} has no tables yet. Build the IE diagram with ${TOOL_NAMES.setIe} (the JSON below is the empty starting point).`
+            : `IE diagram of ${url} as JSON. Edit it and send the whole document back with ${TOOL_NAMES.setIe}; box, fk, inheritedType, identifying and cardinality are read-only.`,
+          JSON.stringify(document, null, 2),
+        ];
+        if (problems.length > 0) {
+          lines.push(
+            '',
+            `Problems in the relational model text people wrote (line:column of that text; ${TOOL_NAMES.setIe} rewrites the text and clears them):`,
+            ...problems.map((p) => problemLine(p, 'en')),
+          );
+        }
+        return ok(lines);
+      }),
+
+    setIe: ({ room, diagram }) =>
+      run(async () => {
+        let input = diagram;
+        // 문서를 JSON 글로 보내는 클라이언트도 있다
+        if (typeof input === 'string') {
+          try {
+            input = JSON.parse(input);
+          } catch {
+            throw new ToolError('"diagram" is not valid JSON; send an object like { "tables": [...], "relationships": [...] }. Nothing was saved.');
+          }
+        }
+        if (new TextEncoder().encode(JSON.stringify(input) ?? '').length > MAX_TEXT_BYTES) {
+          throw new ToolError(`the diagram is too large (the limit is ${MAX_TEXT_BYTES / 1024} KB of JSON). Nothing was saved.`);
+        }
+        const plan = planIeDocument(input);
+        if (!plan.ok) {
+          throw new ToolError([`Nothing was saved. Fix these problems and call ${TOOL_NAMES.setIe} again with the whole document:`, ...plan.errors.map((e) => `- ${e}`)].join('\n'));
+        }
+        const { url, changed } = await backend.ieWrite(room, plan);
+        const { tables, columns, relationships } = plan.counts;
+        const counts = `${tables} table${tables === 1 ? '' : 's'}, ${columns} column${columns === 1 ? '' : 's'}, ${relationships} relationship${relationships === 1 ? '' : 's'}`;
+        const warnings = plan.warnings.map((w) => `warning: ${w}`);
+        return ok([`${changed ? 'Updated the IE diagram of' : 'No changes to the IE diagram of'} ${url} (${counts})`, ...(warnings.length > 0 ? warnings : ['no issues'])]);
       }),
   };
 }

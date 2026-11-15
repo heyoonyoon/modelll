@@ -50,6 +50,11 @@ async function failure(res: Response, ref: RoomRef, file?: string): Promise<CliE
     // 프록시가 만든 오류 화면처럼 JSON이 아닌 응답은 상태 코드만 본다
   }
   const code = typeof body.error === 'string' ? body.error : '';
+  // IE 문서의 검사 실패: 문제를 줄마다 하나씩
+  const errors = (body as { errors?: unknown }).errors;
+  if (code === 'invalid' && Array.isArray(errors) && errors.every((e) => typeof e === 'string')) {
+    return new CliError(['the server did not accept the IE diagram; nothing was saved:', ...errors.map((e) => `  ${e}`)].join('\n'));
+  }
   if (code === 'syntax' && typeof body.line === 'number' && typeof body.column === 'number') {
     return new CliError(
       formatSyntaxError(file ?? 'model', { message: String(body.message ?? 'syntax error'), line: body.line, column: body.column }),
@@ -138,6 +143,45 @@ export async function sendModel(
   if (!res.ok) throw await failure(res, ref, opts.file);
   try {
     return (await res.json()) as PushResult;
+  } catch {
+    throw new CliError(`${ref.server} sent a reply that is not JSON`);
+  }
+}
+
+/** PUT /api/rooms/:id/ie 의 성공 응답 */
+export interface IePushResult {
+  ok: true;
+  room: string;
+  /** 방이 바뀌었는지(같은 문서면 false) */
+  changed: boolean;
+  tables: number;
+  columns: number;
+  relationships: number;
+  /** 받기는 했지만 알릴 것(기본키가 없는 테이블 등) */
+  warnings: string[];
+}
+
+/** 방의 IE 그림 문서(GET /api/rooms/:id/ie)를 받는다. 모양은 서버가 정한 그대로 둔다 */
+export async function fetchIe(fetchImpl: FetchLike, ref: RoomRef): Promise<Record<string, unknown>> {
+  const url = `${ref.server}/api/rooms/${encodeURIComponent(ref.roomId)}/ie`;
+  const res = await request(fetchImpl, ref, url, { method: 'GET' });
+  if (!res.ok) throw await failure(res, ref);
+  try {
+    const value: unknown = await res.json();
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  } catch {
+    // 아래에서 알린다
+  }
+  throw new CliError(`${ref.server} sent a reply that is not a JSON object`);
+}
+
+/** IE 그림 문서(JSON 글)를 보내 방의 IE 그림을 통째로 바꾼다. 없는 방이면 실패한다 */
+export async function sendIe(fetchImpl: FetchLike, ref: RoomRef, json: string): Promise<IePushResult> {
+  const url = `${ref.server}/api/rooms/${encodeURIComponent(ref.roomId)}/ie`;
+  const res = await request(fetchImpl, ref, url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json });
+  if (!res.ok) throw await failure(res, ref);
+  try {
+    return (await res.json()) as IePushResult;
   } catch {
     throw new CliError(`${ref.server} sent a reply that is not JSON`);
   }

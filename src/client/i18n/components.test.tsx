@@ -192,16 +192,14 @@ describe('한국어가 아닌 언어로 그린 화면', () => {
 
     fireEvent.mouseEnter(screen.getByTestId('tool-place:entity'));
     const tip = screen.getByTestId('tool-tip');
-    expect(tip.textContent).toContain('Entity');
-    expect(tip.textContent).toContain('Rectangle.');
-    expect(tip.querySelector('.toolbar-tip-en')).toBeNull();
+    expect(tip.textContent).toBe('EntityE');
     expect(allText(document.body)).not.toMatch(HANGUL);
 
     fireEvent.doubleClick(screen.getByTestId('tool-place:entity'));
     expect(screen.getByTestId('tool-place:entity').getAttribute('aria-label')).toBe('Entity (locked)');
   });
 
-  it('도구 팔레트: 독일어에서는 영어 용어를 함께 보여 주고, 떠 있는 채로 언어를 바꾸면 따라 바뀐다', async () => {
+  it('도구 팔레트: 독일어 이름만 보여 주고(영어 용어나 설명 없음), 떠 있는 채로 언어를 바꾸면 따라 바뀐다', async () => {
     await act(async () => {
       await setLocale('de', { persist: false });
     });
@@ -209,7 +207,8 @@ describe('한국어가 아닌 언어로 그린 화면', () => {
     fireEvent.mouseEnter(screen.getByTestId('tool-place:identifying-relationship'));
     let tip = screen.getByTestId('tool-tip');
     expect(tip.textContent).toContain('Identifizierende Beziehung');
-    expect(tip.querySelector('.toolbar-tip-en')!.textContent).toBe('Identifying relationship type');
+    expect(tip.querySelector('.toolbar-tip-name')!.textContent).toBe('Identifizierende Beziehung');
+    expect(tip.children).toHaveLength(1);
 
     await act(async () => {
       await setLocale('es', { persist: false });
@@ -316,11 +315,9 @@ describe('한국어가 아닌 언어로 그린 화면', () => {
     useUi.getState().setSelection(['a1']);
     inRoom(room, <Inspector />);
     const panel = screen.getByTestId('inspector');
-    expect(panel.textContent).toContain('Schlüsselmarkierung');
-    expect(screen.getByTestId('inspector-key-partial').textContent).toBe('Partieller Schlüssel');
-    expect(screen.getByTestId('inspector-multivalued').textContent).toBe('Mehrwertig');
+    expect(screen.getByTestId('inspector-preset-multivalued-attribute').getAttribute('aria-label')).toBe('Mehrwertiges Attribut');
     expect(screen.getByTestId('inspector-preset-entity').getAttribute('aria-label')).toBe('Entität');
-    expect(screen.getByTestId('inspector-fit').textContent).toBe('An Text anpassen');
+    expect(screen.getByTestId('inspector-fit').textContent).toBe('Größe an Text anpassen');
     expect(allText(panel)).not.toMatch(HANGUL);
   });
 });

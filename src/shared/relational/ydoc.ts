@@ -4,6 +4,8 @@
  *   doc.getText('relational-text')   관계 모델 글
  *   doc.getMap('relational-columns') 컬럼 설정. 키는 columnKey(table, column), 값은 ColumnSetting(평범한 JSON 객체)
  *
+ *   doc.getMap('ie-positions')       (추가) 사람이 옮겨 놓은 IE 상자 자리. 키는 nameKey(테이블), 값은 { x, y }
+ *
  * 컬럼마다 키가 따로라서 두 사람이 서로 다른 컬럼을 고치면 둘 다 남는다. 같은 컬럼을 동시에 고치면 나중에 반영된 쪽이 남는다.
  * 모양이 틀린 키와 값은 읽을 때 무시한다. 도형과 선(nodes, edges)과는 다른 자리라서 모델 텍스트 반영(applyChange)이 건드리지 않는다.
  * 예전의 자동 변환 선택(doc.getMap('relational'))은 더 읽지 않는다. 남아 있어도 해가 없다.
@@ -11,8 +13,9 @@
 import * as Y from 'yjs';
 import { cleanSetting, cleanType, columnKey, isColumnKey } from './settings';
 import { underlineMask } from './lexer';
+import { nameKey } from './names';
 import { normalizeRanges } from './markup';
-import { UNDERLINE_ATTR, type ColumnSetting, type ColumnSettings, type RelationalSource, type SqlDialect, type TextRange } from './userSchema';
+import { UNDERLINE_ATTR, type ColumnSetting, type ColumnSettings, type IePoint, type IePositions, type RelationalSource, type SqlDialect, type TextRange } from './userSchema';
 
 export const RELATIONAL_TEXT = 'relational-text';
 export const RELATIONAL_COLUMNS = 'relational-columns';
@@ -38,6 +41,52 @@ export function getRelationalText(doc: Y.Doc): Y.Text {
 
 export function getColumnSettingsMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(RELATIONAL_COLUMNS);
+}
+
+// ───────────────────────── (추가) IE 상자 자리 ─────────────────────────
+
+export const IE_POSITIONS = 'ie-positions';
+
+export function getIePositionsMap(doc: Y.Doc): Y.Map<unknown> {
+  return doc.getMap(IE_POSITIONS);
+}
+
+/** 저장된 자리 값을 확인한다. x, y가 유한한 수가 아니면 null */
+function cleanPoint(value: unknown): IePoint | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { x, y } = value as Record<string, unknown>;
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+/** 사람이 옮겨 놓은 IE 상자 자리. 키는 nameKey(테이블). 모양이 틀린 키와 값은 무시한다 */
+export function readIePositions(doc: Y.Doc): IePositions {
+  const out: IePositions = {};
+  for (const [key, raw] of getIePositionsMap(doc).entries()) {
+    if (key === '' || nameKey(key) !== key) continue;
+    const p = cleanPoint(raw);
+    if (p) out[key] = p;
+  }
+  return out;
+}
+
+/** 테이블 상자 자리를 적는다. 쓸 수 없는 값(빈 이름, 유한하지 않은 수)이면 쓰지 않고 false. 같은 값이면 문서를 건드리지 않는다 */
+export function setIePosition(doc: Y.Doc, table: string, point: IePoint, origin?: unknown): boolean {
+  const key = nameKey(table);
+  const p = cleanPoint(point);
+  if (key === '' || !p) return false;
+  const map = getIePositionsMap(doc);
+  const cur = cleanPoint(map.get(key));
+  if (cur && cur.x === p.x && cur.y === p.y) return true;
+  doc.transact(() => map.set(key, p), origin);
+  return true;
+}
+
+/** 테이블 상자 자리를 지운다(자동 배치로 돌아간다) */
+export function deleteIePosition(doc: Y.Doc, table: string, origin?: unknown): void {
+  const key = nameKey(table);
+  const map = getIePositionsMap(doc);
+  if (map.has(key)) doc.transact(() => map.delete(key), origin);
 }
 
 export function readColumnSettings(doc: Y.Doc): ColumnSettings {

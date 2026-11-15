@@ -1,0 +1,7 @@
+/* 칸 메뉴, 타입 목록, DBMS 메뉴. 위쪽 바에서도 쓰므로 pane CSS와 따로 둔다 */
+.rel-menu { position: fixed; top: auto; right: auto; z-index: 60; min-width: 140px; max-height: 280px; margin: 0; padding: 4px; overflow-y: auto; overscroll-behavior: contain; list-style: none; font-size: 13px; }
+.rel-menu-item { height: 28px; padding: 0 10px 0 6px; font-size: 13px; }
+.rel-type-list .rel-menu-item { padding: 0 10px; }
+.rel-menu-item.is-active { background: var(--bg-hover); }
+.rel-menu-mono { font-family: var(--font-mono); font-size: 12px; }
+.rel-menu-form { min-width: 220px; padding: 10px; }

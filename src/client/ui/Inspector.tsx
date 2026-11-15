@@ -6,25 +6,21 @@ import { deleteSelection } from '../actions';
 import { PresetIcon } from '../canvas/PresetIcon';
 import { transact, updateEdge, updateEdges, updateNode, updateNodes, type EdgePatch, type NodePatch } from '../collab/docOps';
 import { useEdges, useNodeMap, useRoom } from '../collab/hooks';
-import { presetLabel, useLocale, useT, type MessageKey, type TFunction } from '../i18n';
+import { presetLabel, useT, type MessageKey, type TFunction } from '../i18n';
 import { useUi } from '../state/ui';
 import { fitNodeSize, growToFit } from '../text/measure';
 import { siblingInfo } from '../../shared/geometry';
 import { edgeCanBeDouble, edgeHasCardinality } from '../../shared/rules';
 import {
   CARDINALITY_OPTIONS,
-  MIN_NODE_SIZE,
   NODE_PRESETS,
   PRESET_ORDER,
-  SIDES,
   presetOf,
   type EdgeShapeKind,
   type ErdEdge,
   type ErdNode,
   type KeyType,
   type PresetId,
-  type Side,
-  type SpecType,
 } from '../../shared/types';
 import {
   alignNodes,
@@ -35,9 +31,7 @@ import {
   keyTypeOf,
   nodeLabel,
   normalizeText,
-  parseSize,
   presetChangePatch,
-  resizePatch,
   resolveEdgeShape,
   type AlignMode,
   type DistributeAxis,
@@ -190,7 +184,7 @@ function Segmented<T extends string>({
   );
 }
 
-function Toggle({
+export function Toggle({
   label,
   checked,
   mixed,
@@ -219,7 +213,7 @@ function Toggle({
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="inspector-section">
       <h3 className="inspector-section-title">{title}</h3>
@@ -228,24 +222,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Hint({ children }: { children: ReactNode }) {
-  return <p className="inspector-hint">{children}</p>;
-}
-
 // 고르는 항목의 글자는 그릴 때마다 현재 언어로 만든다(언어를 바꾸면 바로 바뀌도록 상수로 두지 않는다)
 
 function keyOptions(t: TFunction): SegOption<KeyType>[] {
   return [
     { value: 'none', label: t('common.none') },
-    { value: 'key', label: t('term.key'), title: t('inspector.keyTitle') },
-    { value: 'partial', label: t('term.partialKey'), title: t('inspector.partialKeyTitle') },
-  ];
-}
-
-function specOptions(t: TFunction): SegOption<SpecType>[] {
-  return [
-    { value: 'd', label: 'd', title: t('inspector.spec.d') },
-    { value: 'o', label: 'o', title: t('inspector.spec.o') },
+    { value: 'key', label: t('term.key') },
+    { value: 'partial', label: t('term.partialKey') },
   ];
 }
 
@@ -258,7 +241,6 @@ const flag = (on: boolean): true | undefined => (on ? true : undefined);
 
 function NodeSection({ node }: { node: ErdNode }) {
   const t = useT();
-  const locale = useLocale();
   const room = useRoom();
   const id = node.id;
   const current = presetOf(node);
@@ -286,12 +268,6 @@ function NodeSection({ node }: { node: ErdNode }) {
     if (text === cur.text) return;
     const grow = growToFit(cur, text);
     transact(room.doc, () => updateNode(room.doc, id, { text, ...(grow ?? {}) }));
-  };
-
-  const commitSize = (key: 'w' | 'h', raw: string) => {
-    const v = parseSize(raw);
-    if (v === null) return;
-    patchNode((cur) => resizePatch(cur, key === 'w' ? { w: v } : { h: v }));
   };
 
   const fitToText = () =>
@@ -325,78 +301,19 @@ function NodeSection({ node }: { node: ErdNode }) {
             </button>
           ))}
         </div>
-        <p className="inspector-preset-name">
-          {presetLabel(current)}
-          {locale !== 'en' && <span className="muted"> {NODE_PRESETS[current].labelEn}</span>}
-        </p>
+        <p className="inspector-preset-name">{presetLabel(current)}</p>
       </Section>
 
-      {node.kind === 'spec' ? (
-        <Section title={t('inspector.specType')}>
-          <Segmented
-            label={t('inspector.specType')}
-            testId="inspector-spec"
-            options={specOptions(t)}
-            value={node.specType === 'o' ? 'o' : 'd'}
-            onChange={(v) => patchNode(() => ({ specType: v }))}
-          />
-          <Hint>{t('inspector.specHint')}</Hint>
-        </Section>
-      ) : (
+      {/* 특수화 d와 o, 약한 엔티티, 식별 관계, 식별자, 부분 키, 다중값은 위 종류 아이콘으로 고르므로 따로 켜고 끄는 칸을 두지 않는다.
+          크기는 캔버스의 손잡이로 바꾸고, 여기에는 글자와 글자에 맞추기만 둔다 */}
+      {node.kind !== 'spec' && (
         <Section title={t('inspector.text')}>
           <DraftField multiline label={t('inspector.text')} testId="inspector-text" className="inspector-textarea" value={node.text} onCommit={commitText} />
-        </Section>
-      )}
-
-      {node.kind === 'entity' && (
-        <Section title={t('inspector.options')}>
-          <Toggle label={presetLabel('weak-entity')} testId="inspector-weak" checked={Boolean(node.weak)} onChange={(on) => patchNode(() => ({ weak: flag(on) }))} />
-        </Section>
-      )}
-      {node.kind === 'relationship' && (
-        <Section title={t('inspector.options')}>
-          <Toggle
-            label={presetLabel('identifying-relationship')}
-            testId="inspector-identifying"
-            checked={Boolean(node.identifying)}
-            onChange={(on) => patchNode(() => ({ identifying: flag(on) }))}
-          />
-        </Section>
-      )}
-      {node.kind === 'attribute' && (
-        <Section title={t('inspector.options')}>
-          <div className="inspector-row">
-            <span className="inspector-row-label">{t('inspector.keyMark')}</span>
-            <Segmented
-              label={t('inspector.keyMark')}
-              testId="inspector-key"
-              options={keyOptions(t)}
-              value={keyTypeOf(node)}
-              onChange={(v) => patchNode(() => ({ keyType: v === 'none' ? undefined : v }))}
-            />
-          </div>
-          <Toggle
-            label={t('term.multivalued')}
-            testId="inspector-multivalued"
-            checked={Boolean(node.multivalued)}
-            onChange={(on) => patchNode(() => ({ multivalued: flag(on) }))}
-          />
-        </Section>
-      )}
-
-      {node.kind !== 'spec' && (
-        <Section title={t('inspector.size')}>
-          <div className="inspector-size">
-            <label className="inspector-size-field">
-              <span>{t('inspector.width')}</span>
-              <DraftField numeric min={MIN_NODE_SIZE.w} label={t('inspector.width')} testId="inspector-width" value={String(node.w)} onCommit={(v) => commitSize('w', v)} />
-            </label>
-            <label className="inspector-size-field">
-              <span>{t('inspector.height')}</span>
-              <DraftField numeric min={MIN_NODE_SIZE.h} label={t('inspector.height')} testId="inspector-height" value={String(node.h)} onCommit={(v) => commitSize('h', v)} />
-            </label>
-          </div>
-          <button type="button" className="btn inspector-wide" data-testid="inspector-fit" onClick={fitToText}>
+          <button type="button" className="btn inspector-wide inspector-fit" data-testid="inspector-fit" onClick={fitToText}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+              <path d="M6 8h4" />
+            </svg>
             {t('inspector.fitToText')}
           </button>
         </Section>
@@ -457,13 +374,12 @@ function EdgeFields({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string,
           <DraftField
             label={t('inspector.cardinalityInput')}
             testId="inspector-cardinality-input"
-            placeholder={label === null ? t('inspector.cardinalityMixed') : t('inspector.cardinalityExample')}
+            placeholder={label === null ? t('inspector.cardinalityMixed') : undefined}
             disabled={!hasCardinality}
             value={label ?? ''}
             onCommit={(v) => patchAll({ label: v.trim() })}
           />
         </div>
-        {!hasCardinality && <Hint>{t('inspector.cardinalityHint')}</Hint>}
       </Section>
 
       <Section title={t('inspector.lineType')}>
@@ -474,18 +390,11 @@ function EdgeFields({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string,
           value={double === null ? null : double ? 'double' : 'single'}
           onChange={(v) => patchAll({ double: v === 'double' })}
         />
-        {!canBeDouble ? (
-          <Hint>{t('inspector.lineHint.noDouble')}</Hint>
-        ) : nature === 'entity-relationship' ? (
-          <Hint>{t('inspector.lineHint.participation')}</Hint>
-        ) : nature === 'entity-spec' ? (
-          <Hint>{t('inspector.lineHint.specialization')}</Hint>
-        ) : null}
       </Section>
 
       {single && (nature === 'entity-relationship' || role !== '') && (
         <Section title={t('inspector.role')}>
-          <DraftField label={t('inspector.role')} testId="inspector-role" placeholder={t('inspector.roleExample')} value={role} onCommit={(v) => patchAll({ role: v.trim() })} />
+          <DraftField label={t('inspector.role')} testId="inspector-role" value={role} onCommit={(v) => patchAll({ role: v.trim() })} />
         </Section>
       )}
     </>
@@ -494,84 +403,11 @@ function EdgeFields({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string,
 
 // ───────────────────────── 선이 붙는 위치와 모양 ─────────────────────────
 
-/** 아이콘에서 붙는 점을 찍는 자리(16x16 안의 사각형 변 가운데) */
-const SIDE_DOTS: Record<Side, [number, number]> = { top: [8, 4], right: [12, 8], bottom: [8, 12], left: [4, 8] };
-
-/** 도형을 뜻하는 사각형과 선이 붙는 변의 점 */
-function SideIcon({ side }: { side: Side }) {
-  const [cx, cy] = SIDE_DOTS[side];
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x={4} y={4} width={8} height={8} stroke="currentColor" strokeWidth={1.2} opacity={0.5} />
-      <circle cx={cx} cy={cy} r={2.5} fill="currentColor" />
-    </svg>
-  );
-}
-
-type SideChoice = Side | 'auto';
-
-function sideOptions(t: TFunction): SegOption<SideChoice>[] {
-  return [
-    { value: 'auto', label: t('inspector.side.auto'), title: t('inspector.side.autoTitle') },
-    ...SIDES.map((side) => ({ value: side, label: t(`inspector.side.${side}`), icon: <SideIcon side={side} /> })),
-  ];
-}
-
 function shapeOptions(t: TFunction): SegOption<EdgeShapeKind>[] {
   return [
     { value: 'straight', label: t('inspector.shape.straight') },
-    { value: 'elbow', label: t('inspector.shape.elbow'), title: t('inspector.shape.elbowTitle') },
+    { value: 'elbow', label: t('inspector.shape.elbow') },
   ];
-}
-
-/** 선 하나의 양 끝이 도형의 어느 쪽에 붙는지 */
-function EdgeAnchorSection({ edge, nodeMap }: { edge: ErdEdge; nodeMap: Map<string, ErdNode> }) {
-  const t = useT();
-  const room = useRoom();
-  const source = nodeMap.get(edge.source);
-  const target = nodeMap.get(edge.target);
-  const side = (choice: SideChoice): Side | undefined => (choice === 'auto' ? undefined : choice);
-  const isDefault = !edge.sourceSide && !edge.targetSide && !edge.shape;
-  const sides = sideOptions(t);
-  return (
-    <Section title={t('inspector.anchor')}>
-      <div className="inspector-row">
-        <span className="inspector-row-label inspector-ellipsis" title={nodeLabel(source)}>
-          {nodeLabel(source)}
-        </span>
-        <Segmented
-          label={t('inspector.anchorOf', { node: nodeLabel(source) })}
-          testId="inspector-source-side"
-          options={sides}
-          value={edge.sourceSide ?? 'auto'}
-          onChange={(v) => updateEdge(room.doc, edge.id, { sourceSide: side(v) })}
-        />
-      </div>
-      <div className="inspector-row">
-        <span className="inspector-row-label inspector-ellipsis" title={nodeLabel(target)}>
-          {nodeLabel(target)}
-        </span>
-        <Segmented
-          label={t('inspector.anchorOf', { node: nodeLabel(target) })}
-          testId="inspector-target-side"
-          options={sides}
-          value={edge.targetSide ?? 'auto'}
-          onChange={(v) => updateEdge(room.doc, edge.id, { targetSide: side(v) })}
-        />
-      </div>
-      {(source?.kind === 'relationship' || target?.kind === 'relationship') && <Hint>{t('inspector.anchorHint')}</Hint>}
-      <button
-        type="button"
-        className="btn btn-ghost inspector-reset"
-        title={t('inspector.anchorResetTitle')}
-        data-testid="inspector-anchor-reset"
-        disabled={isDefault}
-        onClick={() => updateEdge(room.doc, edge.id, { sourceSide: undefined, targetSide: undefined, shape: undefined })}
-      >
-        {t('inspector.anchorReset')}
-      </button>
-    </Section>
-  );
 }
 
 /** 선 모양(하나 또는 여러 개 한꺼번에) */
@@ -760,7 +596,6 @@ export function Inspector() {
           {name}
         </p>
         <EdgeFields edges={selEdges} nodeMap={nodeMap} />
-        <EdgeAnchorSection edge={edge} nodeMap={nodeMap} />
         <EdgeShapeSection edges={selEdges} nodeMap={nodeMap} />
       </div>
     );
@@ -788,6 +623,9 @@ export function Inspector() {
       <div className="inspector-body">{body}</div>
       <div className="inspector-footer">
         <button type="button" className="btn inspector-delete" data-testid="inspector-delete" onClick={() => deleteSelection(room)}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2.5 4.5h11M6.5 4.5V3h3v1.5M4 4.5l.7 9h6.6l.7-9" />
+          </svg>
           {t('common.delete')}
         </button>
       </div>

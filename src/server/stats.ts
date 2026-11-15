@@ -143,8 +143,8 @@ export interface StatsOptions {
   log?: (message: string) => void;
 }
 
-export type CliCommand = 'new' | 'push' | 'pull' | 'diagram' | 'relational' | 'relational-push' | 'sql';
-export const MCP_TOOLS = ['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql'] as const;
+export type CliCommand = 'new' | 'push' | 'pull' | 'diagram' | 'relational' | 'relational-push' | 'sql' | 'ie' | 'ie-push';
+export const MCP_TOOLS = ['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql', 'get_ie_diagram', 'set_ie_diagram'] as const;
 
 interface LiveConn {
   userKey: string;

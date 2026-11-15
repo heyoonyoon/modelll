@@ -232,6 +232,11 @@ export function snapToGrid(value: number, grid: number): number {
 /** ui.guides를 그리는 SVG 레이어. Canvas의 월드 변환 <g> 안에 놓는다. 선 굵기는 배율과 무관하게 1px로 보이게 한다. */
 export function GuidesLayer() {
   const guides = useUi((s) => s.guides);
+  return <GuideLines guides={guides} />;
+}
+
+/** 안내선 목록을 그린다(IE 그림도 같은 모양을 쓴다) */
+export function GuideLines({ guides }: { guides: Guide[] }) {
   if (guides.length === 0) return null;
   return (
     <g pointerEvents="none" stroke={GUIDE_COLOR} strokeWidth={1} fill="none" data-testid="guides">

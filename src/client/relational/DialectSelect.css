@@ -1,0 +1,12 @@
+/* 위쪽 바의 DBMS 고르기(방 전체가 함께 쓰는 값) */
+.dialect-select { display: inline-flex; align-items: center; gap: 6px; }
+.dialect-select-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.dialect-select-button { height: 32px; padding: 0 8px; gap: 4px; border: 1px solid var(--border); }
+.dialect-select-button.is-active { background: var(--bg-hover); }
+
+/* IE 도구줄과 SQL 머리줄 안의 작은 모양 */
+.dialect-select-compact { gap: 4px; }
+.dialect-select-compact .dialect-select-label { font-size: 11px; color: var(--text-faint); }
+.dialect-select-compact .dialect-select-button { height: 26px; padding: 0 6px 0 8px; border-color: transparent; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.dialect-select-compact .dialect-select-button:hover, .dialect-select-compact .dialect-select-button.is-active { background: var(--bg-hover); }
+.ie-tools .dialect-select-compact { padding: 0 2px 0 4px; }

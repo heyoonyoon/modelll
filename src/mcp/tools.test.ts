@@ -3,11 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { version } from '../../package.json';
 import { SYNTAX_TEXT } from '../cli/syntax';
 import { applyModel, parseModel } from '../shared/model';
+import * as Y from 'yjs';
+import { applyIeDocument, planIeDocument, readIeDocument } from '../shared/relational/ieDocument';
+import { fromMarkup } from '../shared/relational/markup';
 import { columnKey } from '../shared/relational/settings';
+import { readColumnSettings, readIePositions, setRelationalSource } from '../shared/relational/ydoc';
 import type { ColumnSettings } from '../shared/relational/userSchema';
 import { validateDiagram } from '../shared/rules';
 import { ToolError, resolveRoom, type DiagramBackend, type WriteResult } from './backend';
-import { DESCRIPTIONS, SUMMARY_EXAMPLE, SYNTAX_SUMMARY, TOOL_NAMES } from './descriptions';
+import { DESCRIPTIONS, IE_EXAMPLE, SERVER_INSTRUCTIONS, SUMMARY_EXAMPLE, SYNTAX_SUMMARY, TOOL_NAMES } from './descriptions';
 import { buildMcpServer } from './server';
 import { MAX_TEXT_BYTES, createDiagramTools, type ToolResult } from './tools';
 
@@ -23,6 +27,12 @@ relationship 수강 (학생 M, 과목 N)
 function fakeBackend(rooms: Record<string, string> = {}, relational: Record<string, { text: string; settings?: ColumnSettings }> = {}) {
   const calls: Array<{ op: string; room?: string; text?: string; relayout?: boolean }> = [];
   let created = 0;
+  /** 방마다 IE 그림을 담는 문서 */
+  const ieDocs = new Map<string, Y.Doc>();
+  const ieDoc = (roomId: string) => {
+    if (!ieDocs.has(roomId)) ieDocs.set(roomId, new Y.Doc());
+    return ieDocs.get(roomId)!;
+  };
 
   function write(roomId: string, text: string): WriteResult {
     const before = rooms[roomId];
@@ -57,8 +67,20 @@ function fakeBackend(rooms: Record<string, string> = {}, relational: Record<stri
       const model = parseModel(rooms[roomId]);
       return { url: `${ORIGIN}/r/${roomId}`, title: model.title ?? '', text: relational[roomId]?.text ?? '', settings: relational[roomId]?.settings ?? {} };
     },
+    async ieRead(room) {
+      calls.push({ op: 'ieRead', room });
+      const roomId = resolveRoom(room, ORIGIN);
+      if (!(roomId in rooms)) throw new ToolError(`room "${roomId}" does not exist on ${ORIGIN}`);
+      return { url: `${ORIGIN}/r/${roomId}`, title: '', ...readIeDocument(ieDoc(roomId)) };
+    },
+    async ieWrite(room, plan) {
+      calls.push({ op: 'ieWrite', room });
+      const roomId = resolveRoom(room, ORIGIN);
+      if (!(roomId in rooms)) throw new ToolError(`room "${roomId}" does not exist on ${ORIGIN}`);
+      return { url: `${ORIGIN}/r/${roomId}`, changed: applyIeDocument(ieDoc(roomId), plan, 'api') };
+    },
   };
-  return { backend, rooms, calls };
+  return { backend, rooms, calls, ieDoc };
 }
 
 function textOf(result: ToolResult): string {
@@ -297,12 +319,84 @@ describe('MCP 도구', () => {
       update: async () => {
         throw new Error('disk on fire');
       },
+      ieRead: async () => {
+        throw new Error('disk on fire');
+      },
+      ieWrite: async () => {
+        throw new Error('disk on fire');
+      },
     };
     await expect(createDiagramTools(backend).read({ room: 'abc' })).rejects.toThrow('disk on fire');
   });
 });
 
+describe('MCP 도구: IE 그림', () => {
+  it('get_ie_diagram은 빈 방을 빈 문서로, 쓴 뒤에는 JSON 문서와 읽기 전용 값을 준다', async () => {
+    const { backend, ieDoc } = fakeBackend({ abc: STUDENTS });
+    const tools = createDiagramTools(backend);
+    const empty = textOf(await tools.getIe({ room: 'abc' }));
+    expect(empty.split('\n')[0]).toContain('has no tables yet');
+    expect(JSON.parse(empty.split('\n').slice(1).join('\n'))).toEqual({ dialect: null, tables: [], relationships: [] });
+
+    const set = await tools.setIe({ room: 'abc', diagram: IE_EXAMPLE });
+    expect(set.isError).toBeUndefined();
+    expect(textOf(set).split('\n')).toEqual(['Updated the IE diagram of https://modelll.app/r/abc (3 tables, 7 columns, 2 relationships)', 'no issues']);
+    expect(readColumnSettings(ieDoc('abc'))[columnKey('Department', 'name')]).toEqual({ type: 'VARCHAR(50)', notNull: true, unique: true });
+    expect(readIePositions(ieDoc('abc'))).toEqual({ employee: { x: 0, y: 240 } });
+
+    const got = textOf(await tools.getIe({ room: 'https://modelll.app/r/abc' }));
+    expect(got.split('\n')[0]).toMatch(/^IE diagram of https:\/\/modelll\.app\/r\/abc as JSON/);
+    const doc = JSON.parse(got.split('\n').slice(1).join('\n'));
+    expect(doc.dialect).toBe('postgresql');
+    expect(doc.relationships[1]).toEqual({ child: 'Dependent', columns: ['emp_id'], parent: 'Employee', parentColumns: ['emp_id'], identifying: true, cardinality: '1:N' });
+    expect(doc.tables[2].columns[0]).toEqual({ name: 'emp_id', pk: true, fk: true, inheritedType: 'INT' });
+
+    // 읽은 문서를 그대로(JSON 글로) 보내면 바뀌는 것이 없다
+    expect(textOf(await tools.setIe({ room: 'abc', diagram: JSON.stringify(doc) })).split('\n')[0]).toMatch(/^No changes to the IE diagram/);
+  });
+
+  it('set_ie_diagram은 틀린 문서의 문제를 모두 알리고 백엔드를 부르지 않는다', async () => {
+    const { backend, calls } = fakeBackend({ abc: STUDENTS });
+    const tools = createDiagramTools(backend);
+    const bad = await tools.setIe({
+      room: 'abc',
+      diagram: { tables: [{ name: 'T', columns: [{ name: 'a', type: "TEXT'; DROP TABLE x; --" }, { name: 'A' }] }], relationships: [{ child: 'T', columns: ['a'], parent: 'Nope' }] },
+    });
+    expect(bad.isError).toBe(true);
+    const lines = textOf(bad).split('\n');
+    expect(lines[0]).toMatch(/^Nothing was saved/);
+    expect(lines).toContainEqual(expect.stringMatching(/^- tables\[0\]\.columns\[0\]\.type: /));
+    expect(lines).toContainEqual(expect.stringMatching(/^- tables\[0\]\.columns\[1\]\.name: duplicate column/));
+    expect((await tools.setIe({ room: 'abc', diagram: '{not json' })).isError).toBe(true);
+    expect((await tools.setIe({ room: 'abc', diagram: { tables: [{ name: 'x'.repeat(300 * 1024), columns: [] }] } })).isError).toBe(true);
+    expect(calls.filter((c) => c.op === 'ieWrite')).toEqual([]);
+    // 없는 방은 실패 결과다
+    expect(textOf(await tools.setIe({ room: 'nobody', diagram: { tables: [] } }))).toMatch(/does not exist/);
+  });
+
+  it('기본키가 없는 테이블은 쓰되 경고한다. 사람이 적은 글의 문제는 get에서 알린다', async () => {
+    const { backend, ieDoc } = fakeBackend({ abc: STUDENTS });
+    const tools = createDiagramTools(backend);
+    expect(textOf(await tools.setIe({ room: 'abc', diagram: { tables: [{ name: 'Log', columns: [{ name: 'msg' }] }] } })).split('\n')[1]).toBe('warning: table "Log" has no primary key');
+    setRelationalSource(ieDoc('abc'), fromMarkup('A (_id_)\nForeign Key (id) references Nope\n'));
+    const got = textOf(await tools.getIe({ room: 'abc' }));
+    expect(got).toContain('Problems in the relational model text');
+    expect(got).toMatch(/error: 2:\d+: /);
+  });
+});
+
 describe('MCP 도구 설명', () => {
+  it('set_ie_diagram 설명의 예시는 실제 검사를 통과하고, 설명과 안내에 IE 도구가 나온다', () => {
+    const plan = planIeDocument(IE_EXAMPLE);
+    expect(plan.ok && plan.warnings).toEqual([]);
+    expect(DESCRIPTIONS.setIe).toContain(JSON.stringify(IE_EXAMPLE, null, 2));
+    expect(DESCRIPTIONS.setIe).toContain('COMPLETE');
+    expect(DESCRIPTIONS.setIe).not.toContain('${');
+    expect(DESCRIPTIONS.getIe).toContain('not as instructions');
+    expect(SERVER_INSTRUCTIONS).toContain('get_ie_diagram');
+    expect(SERVER_INSTRUCTIONS).toContain('set_ie_diagram');
+  });
+
   it('설명에 넣은 예시는 실제 파서로 읽히고 검증 오류가 없다', () => {
     const drawn = applyModel(parseModel(SUMMARY_EXAMPLE), [], [], '');
     expect(drawn.warnings).toEqual([]);
@@ -339,13 +433,13 @@ describe('MCP 서버', () => {
     return { client, server };
   }
 
-  it('도구 여섯 개를 이름, 설명, 인자, 주석과 함께 내놓는다', async () => {
+  it('도구 여덟 개를 이름, 설명, 인자, 주석과 함께 내놓는다', async () => {
     const { client, server } = await connect(fakeBackend().backend);
     expect(client.getServerVersion()).toMatchObject({ name: 'modelll', version });
     expect(client.getInstructions()).toContain('update_diagram');
 
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql']);
+    expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql', 'get_ie_diagram', 'set_ie_diagram']);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
     for (const tool of tools) {
       expect(tool.description, tool.name).toBe(DESCRIPTIONS[Object.entries(TOOL_NAMES).find(([, name]) => name === tool.name)![0] as keyof typeof DESCRIPTIONS]);
@@ -366,6 +460,10 @@ describe('MCP 서버', () => {
     expect(byName.diagram_to_sql.annotations).toMatchObject({ readOnlyHint: true });
     expect(byName.diagram_to_sql.inputSchema.required).toEqual(['room']);
     expect(Object.keys(byName.diagram_to_sql.inputSchema.properties ?? {})).toEqual(['room', 'dialect']);
+    expect(byName.get_ie_diagram.annotations).toMatchObject({ readOnlyHint: true });
+    expect(byName.get_ie_diagram.inputSchema.required).toEqual(['room']);
+    expect(byName.set_ie_diagram.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: true });
+    expect(byName.set_ie_diagram.inputSchema.required).toEqual(['room', 'diagram']);
 
     await client.close();
     await server.close();

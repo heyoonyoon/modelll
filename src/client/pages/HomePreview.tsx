@@ -1,26 +1,25 @@
 /**
- * 첫 화면의 제품 화면 예시. 방 화면의 기본 분할 배치(왼쪽 ERD, 오른쪽 위 관계 모델, 오른쪽 아래 IE와 SQL 탭)를
- * 축소해 그리고, 두 팀원이 한 방에서 세 단계를 이어 가는 장면을 되풀이한다.
- * 장면은 heroScript.ts의 각본(사람별 이동과 누르기, 끌기, 치기)에서 나온다. 화면 상태는 오직 그 행동의 결과로만 바뀌고,
- * 포인터는 시간에 대한 연속 함수라서 칸을 옮겨 다녀도 끊기지 않는다. 화면 밖에 있거나 탭을 숨기면 시계가 멈춘다.
+ * 첫 화면의 제품 화면 예시. 방 화면을 반으로 나눠 왼쪽에 ERD(Chen 표기), 오른쪽에 IE(까마귀발) 다이어그램을 같은 크기로 그리고,
+ * 두 팀원이 한 방에서 동시에 그리는 장면을 되풀이한다. 지민은 ERD를, 서연은 IE를 직접 그린다(어느 쪽도 다른 쪽에서 나오지 않는다).
+ * 장면은 heroScript.ts의 각본(사람별 이동과 누르기, 끌기, 놓기)에서 나온다. 화면 상태는 오직 그 행동의 결과로만 바뀌고,
+ * 포인터는 시간에 대한 연속 함수라서 끊기지 않는다. 화면 밖에 있거나 탭을 숨기면 시계가 멈춘다.
  * 장식용이라 조작은 받지 않는다.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { computeEdgeGeometry, diagramBounds } from '../../shared/geometry';
 import type { ErdEdge, ErdNode, PresetId } from '../../shared/types';
 import { EdgeShape } from '../canvas/EdgeShape';
 import { NodeShape } from '../canvas/NodeShape';
 import { PresetIcon } from '../canvas/PresetIcon';
 import { APP_NAME, useT, type MessageKey, type TFunction } from '../i18n';
+import { endMarks, type Mark } from '../relational/ieGeometry';
 import { TYPE_OPTIONS } from '../relational/pickers';
-import { tokenizeSql } from '../relational/sqlHighlight';
-import { approximateLineWidth } from '../text/measure';
 import { LogoMark } from '../ui/LogoMark';
-import { TYPE_PLACEHOLDER } from '../../shared/relational/sql';
 import {
+  DEPT,
   IE,
   MENU,
-  NULL_ITEMS,
+  STU,
   TYPE_ITEMS,
   buildScript,
   cellKey,
@@ -28,8 +27,8 @@ import {
   ieGeometry,
   stateAt,
   type Anchor,
-  type CellRef,
   type HeroState,
+  type IeGeom,
   type Pt,
   type Script,
 } from './heroScript';
@@ -99,52 +98,59 @@ function names(t: TFunction) {
   };
 }
 
-/** 관계 모델 글 세 줄과 밑줄을 그을 기본키([줄 번호, 이름]) */
-export function relationalLines(t: TFunction): { lines: string[]; keys: Array<[number, string]> } {
-  const s = names(t);
-  return {
-    lines: [`${s.dept} (${s.dcode}, ${s.dname})`, `${s.student} (${s.sid}, ${s.name}, ${s.dcode})`, `Foreign Key (${s.dcode}) references ${s.dept} (${s.dcode})`],
-    keys: [
-      [0, s.dcode],
-      [1, s.sid],
-    ],
-  };
-}
-
-/** IE에서 고른 타입과 NULL로 만든 MySQL 문. 고르지 않은 타입은 방 화면처럼 자리 표시만 남긴다 */
-export function sqlExample(t: TFunction): string {
-  const s = names(t);
-  const q = (name: string) => '`' + name + '`';
-  return [
-    `CREATE TABLE ${q(s.student)} (`,
-    `  ${q(s.sid)} CHAR(10) NOT NULL,`,
-    `  ${q(s.name)} VARCHAR(255) NOT NULL,`,
-    `  ${q(s.dcode)} ${TYPE_PLACEHOLDER},`,
-    `  PRIMARY KEY (${q(s.sid)}),`,
-    `  FOREIGN KEY (${q(s.dcode)})`,
-    `    REFERENCES ${q(s.dept)} (${q(s.dcode)})`,
-    ');',
-  ].join('\n');
-}
-
-/** 메뉴 항목: 타입이면 MySQL 타입 목록 앞부분, NULL이면 미지정, NOT NULL, NULL */
-function menuItems(t: TFunction, cell: CellRef): string[] {
-  return cell[2] === 'type' ? TYPE_OPTIONS.mysql.slice(0, TYPE_ITEMS) : [t('sqlView.settings.unset'), 'NOT NULL', 'NULL'].slice(0, NULL_ITEMS);
-}
-
-function ieTables(t: TFunction) {
-  const s = names(t);
-  return [
-    { name: s.dept, cols: [{ name: s.dcode, key: 0 }, { name: s.dname }] as IeCol[] },
-    { name: s.student, cols: [{ name: s.sid, key: 1 }, { name: s.name }, { name: s.dcode, fk: true }] as IeCol[] },
-  ];
-}
-
 interface IeCol {
   name: string;
-  /** 기본키 번호. 밑줄이 그어지면 PK가 된다 */
-  key?: number;
+  pk?: boolean;
+  /** 관계선을 이으면 더해지는 외래키 */
   fk?: boolean;
+}
+
+/** IE 표: 위는 학생(학번 PK, 이름, 관계를 이으면 학과코드 FK), 아래는 학과(학과코드 PK, 학과명). ERD와 같은 자리다 */
+export function ieTables(t: TFunction): Array<{ id: string; name: string; cols: IeCol[] }> {
+  const s = names(t);
+  const tables = [];
+  tables[STU] = { id: 't0', name: s.student, cols: [{ name: s.sid, pk: true }, { name: s.name }, { name: s.dcode, fk: true }] };
+  tables[DEPT] = { id: 't1', name: s.dept, cols: [{ name: s.dcode, pk: true }, { name: s.dname }] };
+  return tables;
+}
+
+function ieLabels(t: TFunction) {
+  return { key: t('relView.ie.colKey'), name: t('relView.ie.colName'), type: t('sqlView.settings.type') };
+}
+
+/** 지금 언어의 IE 그림 짜임 */
+export function ieLayout(t: TFunction): IeGeom {
+  return ieGeometry(ieTables(t), ieLabels(t));
+}
+
+/** 타입 메뉴 항목: MySQL 타입 목록 앞부분 */
+const menuItems = () => TYPE_OPTIONS.mysql.slice(0, TYPE_ITEMS);
+
+/** IE 자리 이름을 IE 그림 좌표로. IE 그림 밖의 자리(도구 버튼)면 null */
+function iePoint(g: IeGeom, a: Anchor): Pt | null {
+  const cx = Math.round(g.w / 2);
+  switch (a.k) {
+    case 'spot':
+      return { x: cx, y: g.ys[a.table] + IE.head / 2 };
+    case 'dot':
+      // 관계를 잇기 전의 아래 가장자리(외래키 행이 아직 없다)
+      return { x: cx, y: g.ys[a.table] + g.height(a.table, 2) + IE.dot };
+    case 'drop':
+      return { x: cx - 18, y: g.ys[a.table] + IE.head / 2 + 2 };
+    case 'cell': {
+      const c = g.cell(a.cell);
+      return { x: c.x + c.w * 0.45, y: c.y + c.h * 0.6 };
+    }
+    case 'item': {
+      const m = g.menu(a.cell, menuItems());
+      return { x: m.x + 28, y: m.y + MENU.pad + a.index * MENU.item + MENU.item * 0.6 };
+    }
+    case 'ieRest':
+      // 표 사이 틈의 오른쪽(이름표가 칸 밖으로 잘리지 않는 자리)
+      return { x: g.w - 56, y: g.ys[DEPT] - IE.gap / 2 };
+    default:
+      return null;
+  }
 }
 
 // ───────────────────────── ERD ─────────────────────────
@@ -159,7 +165,7 @@ function ErdCanvas({ state, animated }: { state: HeroState; animated: boolean })
   const edges = EDGES.filter((e) => state.shown.has(e.id)).map((e) => (e.label && !state.shown.has(`${e.id}L`) ? { ...e, label: '' } : e));
   const b = ERD_BOUNDS;
   return (
-    <svg className="home-pv-erd" viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={t('home.preview.diagramLabel')}>
+    <svg className="home-pv-art home-pv-erd" viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={t('home.preview.diagramLabel')}>
       {edges.map((e) => {
         const s = byId.get(e.source);
         const g = byId.get(e.target);
@@ -197,130 +203,114 @@ function ErdCanvas({ state, animated }: { state: HeroState; animated: boolean })
   );
 }
 
-// ───────────────────────── 관계 모델 편집기 ─────────────────────────
-
-function RelEditor({ state, lines, keys }: { state: HeroState; lines: string[]; keys: Array<[number, string]> }) {
-  const t = useT();
-  return (
-    <div className="home-pv-rel" data-testid="home-pv-relational">
-      <div className="home-pv-bar">
-        <span className={state.btn ? `home-pv-btn is-${state.btn}` : 'home-pv-btn'}>
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-            <path d="M4 2.5v5a4 4 0 0 0 8 0v-5M3 14h10" />
-          </svg>
-          {t('relView.editor.underline')}
-        </span>
-      </div>
-      <div className="home-pv-code">
-        {lines.map((line, i) => {
-          const chars = Array.from(line);
-          const typed = state.typed[i];
-          const k = keys.findIndex(([l]) => l === i);
-          let body;
-          if (k < 0) {
-            body = chars.slice(0, typed).join('');
-          } else {
-            const word = keys[k][1];
-            const start = Array.from(line.slice(0, line.indexOf(word))).length;
-            const end = start + Array.from(word).length;
-            const shown = chars.slice(start, Math.min(typed, end));
-            // 끄는 만큼 앞에서부터 칠한다
-            const sel = state.sel && state.sel.key === k ? Math.round(shown.length * state.sel.frac) : 0;
-            body = (
-              <>
-                {chars.slice(0, Math.min(typed, start)).join('')}
-                {typed > start && (
-                  <span className={k < state.marked ? 'home-pv-word is-ul' : 'home-pv-word'} data-mark={k}>
-                    {sel > 0 && <span className="is-sel">{shown.slice(0, sel).join('')}</span>}
-                    {shown.slice(sel).join('')}
-                  </span>
-                )}
-                {typed > end && chars.slice(end, typed).join('')}
-              </>
-            );
-          }
-          return (
-            <div key={i} className="home-pv-line" data-line={i}>
-              <span className="home-pv-ln">{i + 1}</span>
-              <span className="home-pv-text">
-                {body}
-                {state.caretLine === i && <span className="home-pv-caret" style={{ '--c': MATES[1].color } as CSSProperties} data-name={t(MATES[1].name)} />}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ───────────────────────── IE ─────────────────────────
 
-function IeDiagram({ state }: { state: HeroState }) {
+function MarkEl({ m }: { m: Mark }) {
+  if (m.type === 'bar') return <line className="home-ie-mark" x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} />;
+  if (m.type === 'circle') return <circle className="home-ie-mark is-circle" cx={m.cx} cy={m.cy} r={m.r} />;
+  return <path className="home-ie-mark" d={m.d} />;
+}
+
+function IeCanvas({ state }: { state: HeroState }) {
   const t = useT();
   const tables = ieTables(t);
-  const g = ieGeometry(tables.map((tb) => ({ cols: tb.cols.map((c) => c.name) })));
-  const { w, ys, heights, total, X } = g;
+  const labels = ieLabels(t);
+  const g = ieGeometry(tables, labels);
+  const { w, ys, X } = g;
   const cx = Math.round(w / 2);
-  // 표와 선은 글을 적은 결과로 생긴다: 한 줄을 다 적으면 그 표가, Foreign Key 줄을 다 적으면 선이 나온다
-  const tablesShown = state.lineDone[1] ? 2 : state.lineDone[0] ? 1 : 0;
-  const link = state.lineDone[2];
+  const link = state.shown.has('link');
   const menu = state.menu;
-  const items = menu ? menuItems(t, menu) : [];
-  const box = menu ? g.menu(menu, items, menu[2] === 'null') : null;
+  const items = menu ? menuItems() : [];
+  const box = menu ? g.menu(menu, items) : null;
+  /** 보이는 컬럼: 학생의 외래키 행은 관계를 이은 뒤에 생긴다 */
+  const colsOf = (ti: number) => tables[ti].cols.filter((c) => !c.fk || link);
+  const stuBottom = ys[STU] + g.height(STU, colsOf(STU).length);
+  const deptTop = ys[DEPT];
+  // 끌고 있는 고무줄 선: 연결 점에서 포인터까지(포인터와 같은 직선, 같은 쉬움 곡선)
+  const draft = state.draft
+    ? (() => {
+        const a = iePoint(g, state.draft.from)!;
+        const b = iePoint(g, state.draft.to)!;
+        const e = state.draft.e;
+        return { a, b: { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e }, near: e > 0.82 };
+      })()
+    : null;
   return (
-    <svg className="home-pv-ie" viewBox={`-16 -12 ${w + 32} ${total + 24}`} preserveAspectRatio="xMidYMid meet" data-testid="home-pv-ie">
+    <svg className="home-pv-art home-pv-ie" viewBox={`-26 -20 ${w + 52} ${g.total + 40}`} preserveAspectRatio="xMidYMid meet" data-testid="home-pv-ie">
       {link && (
-        <g className="home-pv-fade">
-          <path className="home-ie-link" d={`M${cx} ${heights[0]}V${ys[1]}`} />
-          <path className="home-ie-mark" d={`M${cx - 7} ${heights[0] + 9}H${cx + 7}`} />
-          <path className="home-ie-mark" d={`M${cx} ${ys[1] - 14}L${cx - 7} ${ys[1]}M${cx} ${ys[1] - 14}V${ys[1]}M${cx} ${ys[1] - 14}L${cx + 7} ${ys[1]}`} />
+        // 비식별 관계라 점선. 학생 쪽은 0개 이상(동그라미와 까마귀발), 학과 쪽은 반드시 하나(막대 둘)
+        <g className="home-pv-fade" data-testid="home-pv-ie-link">
+          <path className="home-ie-link" d={`M${cx} ${stuBottom}V${deptTop}`} />
+          {endMarks({ min: 0, max: 'N' }, { x: cx, y: stuBottom }, { x: 0, y: 1 }).map((m, i) => (
+            <MarkEl key={`s${i}`} m={m} />
+          ))}
+          {endMarks({ min: 1, max: '1' }, { x: cx, y: deptTop }, { x: 0, y: -1 }).map((m, i) => (
+            <MarkEl key={`d${i}`} m={m} />
+          ))}
         </g>
       )}
-      {tables.slice(0, tablesShown).map((tb, ti) => {
+      {tables.map((tb, ti) => {
+        if (!state.shown.has(tb.id)) return null;
         const y0 = ys[ti];
-        const h = heights[ti];
+        const cols = colsOf(ti);
+        const h = g.height(ti, cols.length);
+        const pkCount = cols.filter((c) => c.pk).length;
+        const top = y0 + IE.head + IE.colhead;
+        const colMid = y0 + IE.head + IE.colhead / 2;
         return (
-          <g key={ti} className="home-pv-fade" data-table={tb.name}>
+          <g key={tb.id} className="home-pv-fade" data-table={tb.name}>
             <rect className="home-ie-box" x={0} y={y0} width={w} height={h} rx={4} />
             <path className="home-ie-head" d={`M0 ${y0 + IE.head}V${y0 + 4}a4 4 0 0 1 4 -4H${w - 4}a4 4 0 0 1 4 4V${y0 + IE.head}Z`} />
-            <text className="home-ie-name" x={IE.pad + 2} y={y0 + IE.head / 2}>
+            <text className="home-ie-name home-pv-ie-title" x={IE.pad + 2} y={y0 + IE.head / 2}>
               {tb.name}
             </text>
+            <rect className="home-pv-ie-colhead" x={0.6} y={y0 + IE.head} width={w - 1.2} height={IE.colhead} />
+            <g className="home-pv-ie-labels">
+              <text className="home-pv-ie-label is-center" x={g.keyW / 2} y={colMid}>
+                {labels.key}
+              </text>
+              <text className="home-pv-ie-label" x={X.name + IE.pad} y={colMid}>
+                {labels.name}
+              </text>
+              <text className="home-pv-ie-label" x={X.type + IE.pad} y={colMid}>
+                {labels.type}
+              </text>
+              <text className="home-pv-ie-label" x={X.null + IE.pad} y={colMid}>
+                NULL
+              </text>
+            </g>
             {[X.name, X.type, X.null].map((x) => (
               <line key={x} className="home-ie-grid" x1={x} x2={x} y1={y0 + IE.head} y2={y0 + h} />
             ))}
             <line className="home-ie-line" x1={0} x2={w} y1={y0 + IE.head} y2={y0 + IE.head} />
-            {tb.cols.map((c, ci) => {
-              const top = y0 + IE.head + ci * IE.row;
-              const mid = top + IE.row / 2;
-              // PK는 관계 모델 글의 밑줄에서, FK는 Foreign Key 줄에서 나온다. 기본키는 언제나 NOT NULL이다
-              const pk = c.key !== undefined && c.key < state.marked;
-              const fk = !!c.fk && link;
+            <line className="home-ie-line" x1={0} x2={w} y1={top} y2={top} />
+            {cols.map((c, ci) => {
+              const rowTop = top + ci * IE.row;
+              const mid = rowTop + IE.row / 2;
               const type = state.fills[cellKey([ti, ci, 'type'])];
-              const nul = pk ? 'NOT NULL' : state.fills[cellKey([ti, ci, 'null'])];
               const open = menu && menu[0] === ti && menu[1] === ci ? g.cell(menu) : null;
               return (
-                <g key={ci} data-column={c.name} data-type={type || undefined}>
-                  {ci > 0 && <line className="home-ie-line" x1={0} x2={w} y1={top} y2={top} />}
-                  {(pk || fk) && (
-                    <text className="home-ie-tag" x={IE.tag / 2} y={mid}>
-                      {pk ? 'PK' : 'FK'}
+                <g key={c.name + ci} className={c.fk ? 'home-pv-fade' : undefined} data-column={c.name} data-type={type || undefined}>
+                  {/* 기본키 묶음과 나머지 사이의 구분선(방 화면처럼 진하게) */}
+                  {ci > 0 && <line className={ci === pkCount ? 'home-ie-line' : 'home-pv-ie-row'} x1={0} x2={w} y1={rowTop} y2={rowTop} />}
+                  {(c.pk || c.fk) && (
+                    <text className="home-ie-tag" x={g.keyW / 2} y={mid}>
+                      {c.pk ? 'PK' : 'FK'}
                     </text>
                   )}
-                  <text className={pk ? 'home-ie-col is-pk' : 'home-ie-col'} x={X.name + IE.pad} y={mid}>
+                  <text className={c.pk ? 'home-ie-col is-pk' : 'home-ie-col'} x={X.name + IE.pad} y={c.pk ? mid + 4.5 : mid}>
                     {c.name}
                   </text>
-                  {pk && <line className="home-ie-pk" x1={X.name + IE.pad} x2={X.name + IE.pad + approximateLineWidth(c.name, IE.font)} y1={mid + 8} y2={mid + 8} />}
                   {open && <rect className="home-ie-edit" x={open.x + 2} y={open.y + 3} width={open.w - 4} height={open.h - 6} rx={3} />}
                   {type && (
                     <text key={type} className="home-ie-type" x={X.type + IE.pad} y={mid}>
                       {type}
                     </text>
                   )}
-                  {nul && (
-                    <text className={pk ? 'home-ie-null' : 'home-ie-null is-set'} x={X.null + IE.pad} y={mid}>
-                      {nul}
+                  {/* 기본키는 언제나 NOT NULL(방 화면처럼 잠긴 칸이라 옅게) */}
+                  {c.pk && (
+                    <text className="home-ie-null" x={X.null + IE.pad} y={mid}>
+                      NOT NULL
                     </text>
                   )}
                 </g>
@@ -329,17 +319,59 @@ function IeDiagram({ state }: { state: HeroState }) {
           </g>
         );
       })}
+      {/* 서연이 고른(방금 놓은) 표의 선택 테두리 */}
+      {state.picks.map((id, who) => {
+        const ti = tables.findIndex((tb) => tb.id === id);
+        if (ti < 0) return null;
+        return (
+          <rect
+            key={`${who}-${id}`}
+            className="home-pv-pick"
+            x={-5}
+            y={ys[ti] - 5}
+            width={w + 10}
+            height={g.height(ti, colsOf(ti).length) + 10}
+            rx="5"
+            fill="none"
+            stroke={MATES[who].color}
+            strokeWidth="1.6"
+          />
+        );
+      })}
+      {/* 연결 점: 표에 올리면 네 변에 보이고, 끌기 시작한 점은 채워진다 */}
+      {state.dots >= 0 &&
+        (() => {
+          const y0 = ys[state.dots];
+          const h = g.height(state.dots, 2);
+          const pts = [
+            { x: cx, y: y0 - IE.dot, on: false },
+            { x: w + IE.dot, y: y0 + h / 2, on: false },
+            { x: cx, y: y0 + h + IE.dot, on: !!draft },
+            { x: -IE.dot, y: y0 + h / 2, on: false },
+          ];
+          return (
+            <g className="home-pv-dots">
+              {pts.map((p, i) => (
+                <circle key={i} className={p.on ? 'home-pv-dot is-on' : 'home-pv-dot'} cx={p.x} cy={p.y} r={4.5} />
+              ))}
+            </g>
+          );
+        })()}
+      {draft && (
+        <g className="home-pv-draft" data-testid="home-pv-draft">
+          {draft.near && <rect className="home-pv-target" x={-4} y={deptTop - 4} width={w + 8} height={g.height(DEPT, tables[DEPT].cols.length) + 8} rx={5} />}
+          <line className="home-pv-rubber" x1={draft.a.x} y1={draft.a.y} x2={draft.b.x} y2={draft.b.y} />
+        </g>
+      )}
       {menu && box && (
         <g className="home-pv-menu" data-testid="home-pv-menu">
           <rect className="home-pv-menu-box" x={box.x} y={box.y} width={box.w} height={box.h} rx={6} />
           {items.map((it, i) => {
             const y = box.y + MENU.pad + i * MENU.item;
-            const check = menu[2] === 'null' ? 18 : 0;
             return (
               <g key={it}>
                 {i === state.hover && <rect className="home-pv-menu-hover" x={box.x + MENU.pad} y={y} width={box.w - MENU.pad * 2} height={MENU.item} rx={4} />}
-                {check > 0 && i === 0 && <path className="home-pv-menu-check" d={`M${box.x + 10} ${y + 11}l3 3 6-7`} />}
-                <text className={check ? 'home-pv-menu-text' : 'home-pv-menu-text is-mono'} x={box.x + MENU.pad + 6 + check} y={y + MENU.item / 2}>
+                <text className="home-pv-menu-text is-mono" x={box.x + MENU.pad + 6} y={y + MENU.item / 2}>
                   {it}
                 </text>
               </g>
@@ -351,49 +383,34 @@ function IeDiagram({ state }: { state: HeroState }) {
   );
 }
 
-function SqlView({ state }: { state: HeroState }) {
-  const t = useT();
-  const lines = sqlExample(t).split('\n');
-  const tokens = tokenizeSql(lines.slice(0, Math.max(0, state.sqlLines)).join('\n'));
-  return (
-    <pre className="home-pv-sql" data-testid="home-pv-sql">
-      {tokens.map((tk, i) =>
-        tk.kind === 'text' || tk.kind === 'punct' ? (
-          tk.text
-        ) : (
-          <span key={i} className={`home-sql-${tk.kind}`}>
-            {tk.text}
-          </span>
-        ),
-      )}
-    </pre>
-  );
-}
-
 // ───────────────────────── 화면 틀 ─────────────────────────
 
-type TabIcon = 'erd' | 'rel' | 'ie' | 'sql';
+type TabIcon = 'erd' | 'ie';
 const TAB_ICONS: Record<TabIcon, string> = {
   erd: 'M1.5 6h4v4h-4zM10.5 6h4v4h-4zM5.5 8h5',
-  rel: 'M2.5 3h11v10h-11zM2.5 6h11M6 6v7',
   ie: 'M2 2.5h5v4H2zM9 9.5h5v4H9zM4.5 6.5V11.5H9',
-  sql: 'M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5',
 };
 
-function Tab({ label, icon, active, close, hover }: { label: string; icon: TabIcon; active?: boolean; close?: boolean; hover?: boolean }) {
+function Tab({ label, icon }: { label: string; icon: TabIcon }) {
   return (
-    <span className={['home-pv-tab', active ? 'is-active' : '', hover ? 'is-hover' : ''].filter(Boolean).join(' ')} data-tab={icon}>
+    <span className="home-pv-tab is-active" data-tab={icon}>
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
         <path d={TAB_ICONS[icon]} />
       </svg>
       {label}
-      {close && <i aria-hidden="true">×</i>}
+      <i aria-hidden="true">×</i>
     </span>
   );
 }
 
+const POINTER_ICON = (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+    <path d="M5 3l4.6 12 1.9-5 5-1.9z" />
+  </svg>
+);
+
 /**
- * 자리 이름(Anchor)을 분할 화면 기준 좌표로 바꾼다. ERD와 IE는 그림 좌표를 SVG 변환으로, 관계 모델과 탭은 요소 위치를 잰다.
+ * 자리 이름(Anchor)을 분할 화면 기준 좌표로 바꾼다. ERD와 IE는 그림 좌표를 SVG 변환으로, 도구 버튼은 요소 위치를 잰다.
  * 아직 그려지지 않은 요소면 null이다(그리는 쪽이 직전 자리를 쓴다).
  */
 function makeResolver(root: HTMLElement, t: TFunction): (a: Anchor) => Pt | null {
@@ -405,40 +422,17 @@ function makeResolver(root: HTMLElement, t: TFunction): (a: Anchor) => Pt | null
     const p = new DOMPoint(x, y).matrixTransform(m);
     return { x: p.x - box.left, y: p.y - box.top };
   };
-  const at = (el: Element | null, fx: number, fy: number): Pt | null => {
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: r.left - box.left + r.width * fx, y: r.top - box.top + r.height * fy };
-  };
-  const tables = ieTables(t);
-  const g = ieGeometry(tables.map((tb) => ({ cols: tb.cols.map((c) => c.name) })));
+  const g = ieLayout(t);
   return (a) => {
-    switch (a.k) {
-      case 'erd':
-        return viaSvg('.home-pv-erd', a.x, a.y);
-      case 'line': {
-        const el = root.querySelector(`[data-line="${a.line}"] .home-pv-text`);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { x: r.left - box.left + 3, y: r.top - box.top + 11 };
-      }
-      case 'word':
-        return at(root.querySelector(`[data-mark="${a.key}"]`), a.end ? 1 : 0, 0.75);
-      case 'underline':
-        return at(root.querySelector('.home-pv-btn'), 0.55, 0.6);
-      case 'relRest':
-        return at(root.querySelector('.home-pv-rel'), 0.8, 0.9);
-      case 'cell': {
-        const c = g.cell(a.cell);
-        return viaSvg('.home-pv-ie', c.x + c.w * 0.45, c.y + c.h * 0.6);
-      }
-      case 'item': {
-        const m = g.menu(a.cell, menuItems(t, a.cell), a.cell[2] === 'null');
-        return viaSvg('.home-pv-ie', m.x + 28, m.y + MENU.pad + a.index * MENU.item + MENU.item * 0.6);
-      }
-      case 'tab':
-        return at(root.querySelector('.home-pv-tab[data-tab="sql"]'), 0.45, 0.62);
+    if (a.k === 'erd') return viaSvg('.home-pv-erd', a.x, a.y);
+    if (a.k === 'ieTool') {
+      const el = root.querySelector('[data-ie-tool]');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left - box.left + r.width * 0.55, y: r.top - box.top + r.height * 0.6 };
     }
+    const p = iePoint(g, a);
+    return p ? viaSvg('.home-pv-ie', p.x, p.y) : null;
   };
 }
 
@@ -446,13 +440,16 @@ function makeResolver(root: HTMLElement, t: TFunction): (a: Anchor) => Pt | null
  * 두 사람의 포인터. 각본(cursorAt)이 시간마다 정한 자리에 그린다. 자리 이름을 좌표로 바꿀 수 없는 순간(요소가 아직 없을 때)은
  * 그 자리의 마지막 좌표를 쓴다. 프레임마다 다시 그리지 않고 요소의 transform만 바꾼다.
  */
-function Cursors({ host, script, ms, state }: { host: RefObject<HTMLDivElement | null>; script: Script; ms: number; state: HeroState }) {
+function Cursors({ script, ms, state }: { script: Script; ms: number; state: HeroState }) {
   const t = useT();
   const refs = [useRef<HTMLSpanElement>(null), useRef<HTMLSpanElement>(null)];
+  const layerRef = useRef<HTMLDivElement>(null);
   const clickRef = useRef<HTMLDivElement>(null);
   const memo = useRef(new Map<string, Pt>());
   useLayoutEffect(() => {
-    const root = host.current;
+    // 분할 화면 기준으로 잰다. 부모의 ref는 자식의 layout effect 뒤에 붙으므로(첫 그림에서 비어 있다) 자기 요소의 부모를 쓴다.
+    // 움직임을 줄인 화면은 한 번만 그리므로 첫 그림에서 포인터 자리가 정해져야 한다
+    const root = layerRef.current?.parentElement;
     if (!root) return;
     const raw = makeResolver(root, t);
     // 자리를 아직 한 번도 잴 수 없었던 순간이 있으면 그 프레임에는 포인터를 감춘다(왼쪽 위 구석에 그리지 않는다)
@@ -488,7 +485,7 @@ function Cursors({ host, script, ms, state }: { host: RefObject<HTMLDivElement |
     }
   });
   return (
-    <div className="home-pv-cursors" aria-hidden="true">
+    <div ref={layerRef} className="home-pv-cursors" aria-hidden="true">
       <div ref={clickRef} />
       {([0, 1] as const).map((who) => (
         <span key={who} ref={refs[who]} className="home-pv-hcursor">
@@ -502,23 +499,19 @@ function Cursors({ host, script, ms, state }: { host: RefObject<HTMLDivElement |
   );
 }
 
-function Stage({ ms, animated, script, lines, keys }: { ms: number; animated: boolean; script: Script; lines: string[]; keys: Array<[number, string]> }) {
+function Stage({ ms, animated, script }: { ms: number; animated: boolean; script: Script }) {
   const t = useT();
-  const state = stateAt(script, lines, ms);
-  const ref = useRef<HTMLDivElement>(null);
+  const state = stateAt(script, ms);
+  const toolClass = ['home-pv-tool', state.tool ? 'is-active' : '', state.toolHover && !state.tool ? 'is-hover' : ''].filter(Boolean).join(' ');
   return (
-    <div ref={ref} className={state.leaving ? 'home-pv-split is-leaving' : 'home-pv-split'} data-tab={state.tab} data-testid="home-pv-split">
+    <div className={state.leaving ? 'home-pv-split is-leaving' : 'home-pv-split'} data-testid="home-pv-split">
       <section className="home-pv-pane is-erd">
         <div className="home-pv-tabs">
-          <Tab label={t('relPane.title.erd')} icon="erd" active close />
+          <Tab label={t('relPane.title.erd')} icon="erd" />
         </div>
         <div className="home-pv-canvas">
           <div className="home-pv-tools" aria-hidden="true">
-            <span className="home-pv-tool is-active">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-                <path d="M5 3l4.6 12 1.9-5 5-1.9z" />
-              </svg>
-            </span>
+            <span className="home-pv-tool is-active">{POINTER_ICON}</span>
             {TOOLS.map((id) => (
               <span key={id} className="home-pv-tool">
                 <PresetIcon presetId={id} size={14} />
@@ -528,24 +521,24 @@ function Stage({ ms, animated, script, lines, keys }: { ms: number; animated: bo
           <ErdCanvas state={state} animated={animated} />
         </div>
       </section>
-      <section className="home-pv-pane is-rel">
-        <div className="home-pv-tabs">
-          <Tab label={t('relPane.title.relational')} icon="rel" active close />
-        </div>
-        <RelEditor state={state} lines={lines} keys={keys} />
-      </section>
       <section className="home-pv-pane is-ie">
         <div className="home-pv-tabs">
-          <Tab label={t('relPane.title.ie')} icon="ie" active={state.tab === 'ie'} close={state.tab === 'ie'} />
-          <Tab label={t('relPane.title.sql')} icon="sql" active={state.tab === 'sql'} close={state.tab === 'sql'} hover={state.tabHover} />
+          <Tab label={t('relPane.title.ie')} icon="ie" />
         </div>
-        <div className="home-pv-head">
-          <span>{t('sqlView.dialect')}</span>
-          <span className="home-pv-select">MySQL</span>
+        <div className="home-pv-canvas">
+          <div className="home-pv-tools" aria-hidden="true">
+            <span className={state.tool ? 'home-pv-tool' : 'home-pv-tool is-active'}>{POINTER_ICON}</span>
+            <span className={toolClass} data-ie-tool="">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1.75" y="2.75" width="9.5" height="9.5" rx="1.25" />
+                <path d="M1.75 6.25h9.5M13.25 9.5v5M10.75 12h5" />
+              </svg>
+            </span>
+          </div>
+          <IeCanvas state={state} />
         </div>
-        <div className="home-pv-body">{state.tab === 'ie' ? <IeDiagram state={state} /> : <SqlView state={state} />}</div>
       </section>
-      <Cursors host={ref} script={script} ms={ms} state={state} />
+      <Cursors script={script} ms={ms} state={state} />
     </div>
   );
 }
@@ -600,11 +593,10 @@ export function HomePreview() {
   const t = useT();
   // 처음 열릴 때 카드가 올라오는 동안 모자이크가 풀린다
   const mosaic = useMosaic<HTMLElement>({ delay: 60, duration: 1400 });
-  const { lines, keys } = relationalLines(t);
-  const script = useMemo(() => buildScript(lines), [lines.join('\n')]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 작업 장면은 모자이크가 다 풀린 뒤에 시작한다. 그 전에는 첫 장면(빈 ERD)에 멈춰 있다
+  const script = useMemo(() => buildScript(), []);
+  // 작업 장면은 모자이크가 다 풀린 뒤에 시작한다. 그 전에는 첫 장면(빈 화면)에 멈춰 있다
   const ms = useSceneClock(animated && mosaic.done, mosaic.ref, script.loop);
-  // 움직임을 쓰지 않으면 SQL 탭을 누르기 직전(IE를 다 채운 때)에 멈춘 장면을 보여 준다
+  // 움직임을 쓰지 않으면 두 사람이 다 그린 장면에 멈춘다
   const at = animated ? ms : script.still;
   return (
     <figure ref={mosaic.ref} className="home-pv" aria-label={t('home.preview.label')}>
@@ -624,7 +616,7 @@ export function HomePreview() {
         </span>
         <span className="home-pv-share">{t('topbar.share')}</span>
       </div>
-      <Stage ms={at} animated={animated} script={script} lines={lines} keys={keys} />
+      <Stage ms={at} animated={animated} script={script} />
       {mosaic.overlay}
     </figure>
   );

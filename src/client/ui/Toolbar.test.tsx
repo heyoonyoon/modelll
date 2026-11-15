@@ -74,17 +74,17 @@ describe('Toolbar', () => {
     expect(ui().toolLocked).toBe(false);
   });
 
-  it('마우스를 올리면 이름, 영어 이름, 단축키, 설명이 든 툴팁이 뜬다', () => {
+  it('마우스를 올리면 이름과 단축키만 든 툴팁이 뜬다(영어 이름, 설명, 잠금 안내 없음)', () => {
     render(<Toolbar />);
     fireEvent.mouseEnter(screen.getByTestId('tool-place:entity'));
     let tip = screen.getByTestId('tool-tip');
-    expect(tip.textContent).toContain('엔티티');
-    expect(tip.textContent).toContain('Entity type');
+    expect(tip.textContent).toBe('엔티티E');
     expect([...tip.querySelectorAll('.kbd')].map((k) => k.textContent)).toEqual(['E']);
 
     fireEvent.mouseEnter(screen.getByTestId('tool-connect-double'));
     tip = screen.getByTestId('tool-tip');
-    expect(tip.textContent).toContain('전체 참여 또는 전체 특수화');
+    expect(tip.children).toHaveLength(1);
+    expect(tip.textContent).not.toContain('전체 참여');
     expect([...tip.querySelectorAll('.kbd')].map((k) => k.textContent)).toEqual(['Shift', 'L']);
 
     // 단축키가 없는 도구는 키를 그리지 않는다

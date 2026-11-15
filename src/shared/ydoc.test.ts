@@ -147,3 +147,22 @@ describe('applyChange', () => {
     expect(getTitle(remote)).toBe('t');
   });
 });
+
+describe('(추가) 선이 붙는 자리 읽기', () => {
+  it('네 면과 면 사이 자리는 읽고, 모르는 값은 자동(없음)으로 읽는다', () => {
+    const doc = new Y.Doc();
+    const map = getEdgesMap(doc);
+    const put = (id: string, sourceSide: unknown, targetSide: unknown) => {
+      const m = new Y.Map<unknown>();
+      for (const [k, v] of Object.entries({ id, source: 'a', target: 'b', double: false, label: '', role: '', sourceSide, targetSide })) m.set(k, v);
+      map.set(id, m);
+    };
+    put('old', 'top', 'left');
+    put('new', 'top-right', 'bottom-left');
+    put('bad', 'middle', 3);
+    const byId = Object.fromEntries(getEdges(doc).map((e) => [e.id, e]));
+    expect([byId.old.sourceSide, byId.old.targetSide]).toEqual(['top', 'left']);
+    expect([byId.new.sourceSide, byId.new.targetSide]).toEqual(['top-right', 'bottom-left']);
+    expect('sourceSide' in byId.bad || 'targetSide' in byId.bad).toBe(false);
+  });
+});

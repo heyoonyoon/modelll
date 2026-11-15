@@ -86,6 +86,8 @@ describe('노드 하나', () => {
     setup([n('학생', 'entity', { weak: true })], [], ['학생']);
     expect(screen.getByTestId('inspector')).toBeTruthy();
     expect(screen.getAllByTestId(/^inspector-preset-/)).toHaveLength(11);
+    // 종류 이름만 쓰고 영어 이름이나 설명은 없다
+    expect(screen.getByTestId('inspector').querySelector('.inspector-preset-name')!.textContent).toBe('약한 엔티티');
     expect(screen.queryByTestId('inspector-preset-derived-attribute')).toBeNull();
     expect(screen.getByTestId('inspector-preset-weak-entity').className).toContain('is-active');
     expect(screen.getByTestId('inspector-preset-entity').className).not.toContain('is-active');
@@ -103,28 +105,26 @@ describe('노드 하나', () => {
     expect(yNode('a').toJSON()).toMatchObject({ kind: 'attribute', keyType: 'key', multivalued: true, w: 120 });
   });
 
-  it('토글을 끄면 false가 아니라 키를 지운다', () => {
-    setup([n('a', 'entity')], [], ['a']);
-    const toggle = screen.getByTestId('inspector-weak');
-    fireEvent.click(toggle);
-    expect(yNode('a').get('weak')).toBe(true);
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(toggle);
-    expect(yNode('a').has('weak')).toBe(false);
-  });
-
-  it('속성 옵션: 식별자 표시, 다중값', () => {
-    setup([n('a', 'attribute')], [], ['a']);
-    fireEvent.click(screen.getByTestId('inspector-key-partial'));
-    expect(yNode('a').get('keyType')).toBe('partial');
-    fireEvent.click(screen.getByTestId('inspector-key-none'));
-    expect(yNode('a').has('keyType')).toBe(false);
-    fireEvent.click(screen.getByTestId('inspector-multivalued'));
-    expect(yNode('a').toJSON()).toMatchObject({ multivalued: true });
-    fireEvent.click(screen.getByTestId('inspector-multivalued'));
-    expect(yNode('a').has('multivalued')).toBe(false);
-    // 유도 속성은 화면에서 켜고 끌 수 없다
-    expect(screen.queryByTestId('inspector-derived')).toBeNull();
+  it('종류 아이콘과 겹치는 칸(약한 엔티티, 식별 관계, 식별자 표시, 다중값, 특수화 d와 o, 크기)은 없다. 종류 아이콘으로 바꾼다', () => {
+    const view = setup([n('e', 'entity'), n('r', 'relationship'), n('a', 'attribute'), n('s', 'spec', { specType: 'd', text: '' })], [], ['e']);
+    const gone = ['inspector-weak', 'inspector-identifying', 'inspector-key-none', 'inspector-multivalued', 'inspector-spec-d', 'inspector-width', 'inspector-height'];
+    for (const sel of ['e', 'r', 'a', 's']) {
+      act(() => useUi.getState().setSelection([sel]));
+      for (const id of gone) expect(screen.queryByTestId(id)).toBeNull();
+    }
+    // 종류 아이콘으로 고친다
+    act(() => useUi.getState().setSelection(['r']));
+    fireEvent.click(screen.getByTestId('inspector-preset-identifying-relationship'));
+    expect(yNode('r').get('identifying')).toBe(true);
+    act(() => useUi.getState().setSelection(['s']));
+    expect(screen.queryByTestId('inspector-text')).toBeNull();
+    expect(screen.queryByTestId('inspector-fit')).toBeNull();
+    fireEvent.click(screen.getByTestId('inspector-preset-spec-o'));
+    expect(yNode('s').get('specType')).toBe('o');
+    // 묶음 제목은 종류와 글자뿐이다(빈 옵션, 크기 제목이 없다)
+    act(() => useUi.getState().setSelection(['a']));
+    expect(Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent)).toEqual(['종류', '글자']);
+    view.unmount();
   });
 
   it('예전에 만든 유도 속성은 그대로 두고, 종류를 바꾸면 derived를 지운다', () => {
@@ -132,25 +132,9 @@ describe('노드 하나', () => {
     // 고를 수 있는 종류로는 보통 속성으로 보인다
     expect(screen.getByTestId('inspector-preset-attribute').className).toContain('is-active');
     expect(screen.queryByTestId('inspector-derived')).toBeNull();
-    // 다른 옵션을 고쳐도 derived는 건드리지 않는다
-    fireEvent.click(screen.getByTestId('inspector-key-key'));
-    expect(yNode('a').toJSON()).toMatchObject({ keyType: 'key', derived: true });
     fireEvent.click(screen.getByTestId('inspector-preset-multivalued-attribute'));
     expect(yNode('a').has('derived')).toBe(false);
     expect(yNode('a').get('multivalued')).toBe(true);
-  });
-
-  it('관계는 식별 관계 토글, 특수화 원은 글자 대신 d / o 선택', () => {
-    const view = setup([n('r', 'relationship'), n('s', 'spec', { specType: 'd', text: '' })], [], ['r']);
-    fireEvent.click(screen.getByTestId('inspector-identifying'));
-    expect(yNode('r').get('identifying')).toBe(true);
-
-    act(() => useUi.getState().setSelection(['s']));
-    expect(screen.queryByTestId('inspector-text')).toBeNull();
-    expect(screen.queryByTestId('inspector-width')).toBeNull();
-    fireEvent.click(screen.getByTestId('inspector-spec-o'));
-    expect(yNode('s').get('specType')).toBe('o');
-    view.unmount();
   });
 
   it('글자는 blur에서 확정하고 growToFit 결과를 한 번에 적용한다', () => {
@@ -233,24 +217,10 @@ describe('노드 하나', () => {
     expect(field('inspector-text').value).toBe('과목');
   });
 
-  it('크기는 최소 크기 이상으로, 중심을 유지한 채 바꾼다', () => {
-    setup([n('a', 'entity', { x: 100, y: 100, w: 100, h: 50 })], [], ['a']);
-    const w = type('inspector-width', '200');
-    fireEvent.keyDown(w, { key: 'Enter', code: 'Enter' });
-    expect(yNode('a').toJSON()).toMatchObject({ x: 50, y: 100, w: 200, h: 50 });
-    const h = type('inspector-height', '3');
-    act(() => h.blur());
-    expect(yNode('a').toJSON()).toMatchObject({ x: 50, y: 111, w: 200, h: 28 });
-    expect(field('inspector-height').value).toBe('28');
-    // 수가 아니면 무시한다
-    const w2 = type('inspector-width', '');
-    act(() => w2.blur());
-    expect(yNode('a').get('w')).toBe(200);
-  });
-
-  it('글자에 맞추기', () => {
+  it('글자에 맞추기(글자 칸 바로 아래)', () => {
     setup([n('a', 'entity', { x: 100, y: 100, w: 100, h: 50 })], [], ['a']);
     fireEvent.click(screen.getByTestId('inspector-fit'));
+    expect(screen.getByTestId('inspector-fit').closest('section')).toBe(screen.getByTestId('inspector-text').closest('section'));
     expect(yNode('a').toJSON()).toMatchObject({ x: 50, y: 85, w: 200, h: 80 });
   });
 
@@ -289,9 +259,10 @@ describe('엣지 하나', () => {
     expect(yEdge('e1').get('label')).toBe('');
   });
 
-  it('선 종류와 역할 이름, 전체 참여 안내', () => {
+  it('선 종류와 역할 이름(설명 문장은 없다)', () => {
     setup(er(), [e('e1', '학생', 'r')], ['e1']);
-    expect(screen.getByTestId('inspector').textContent).toContain('이중선은 전체 참여');
+    expect(screen.getByTestId('inspector').textContent).not.toContain('이중선은');
+    expect(screen.getByTestId('inspector').querySelector('.inspector-hint')).toBeNull();
     fireEvent.click(screen.getByTestId('inspector-line-double'));
     expect(yEdge('e1').get('double')).toBe(true);
     fireEvent.click(screen.getByTestId('inspector-line-single'));
@@ -302,11 +273,11 @@ describe('엣지 하나', () => {
     expect(yEdge('e1').get('role')).toBe('수강생');
   });
 
-  it('엔티티와 특수화 원 사이: 전체 특수화 안내, 카디널리티와 역할은 쓰지 않는다', () => {
+  it('엔티티와 특수화 원 사이: 카디널리티와 역할은 쓰지 않는다(안내 문장 없이 막아 둔다)', () => {
     setup(er(), [e('e1', '학생', 's')], ['e1']);
     const text = screen.getByTestId('inspector').textContent ?? '';
-    expect(text).toContain('이중선은 전체 특수화');
-    expect(text).toContain('엔티티와 관계 사이의 선에만 적습니다');
+    expect(text).not.toContain('이중선은');
+    expect(text).not.toContain('엔티티와 관계 사이의 선에만');
     expect((screen.getByTestId('inspector-cardinality-1') as HTMLButtonElement).disabled).toBe(true);
     expect(field('inspector-cardinality-input').disabled).toBe(true);
     expect(screen.queryByTestId('inspector-role')).toBeNull();
@@ -387,48 +358,16 @@ describe('여러 개 선택', () => {
   });
 });
 
-describe('선이 붙는 위치와 선 모양', () => {
+describe('선 모양(붙는 위치는 캔버스의 끝점 손잡이로 고른다)', () => {
   const nodes = () => [n('학생', 'entity'), n('수강', 'relationship'), n('나이', 'attribute'), n('과목', 'entity')];
   const sectionTitles = () => Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent);
 
-  it('구역 순서: 카디널리티, 선 종류, 역할 이름, 붙는 위치, 선 모양', () => {
+  it('구역 순서: 카디널리티, 선 종류, 역할 이름, 선 모양(붙는 위치 구역은 없다)', () => {
     setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
-    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '역할 이름', '붙는 위치', '선 모양']);
-  });
-
-  it('양 끝의 붙는 위치를 따로 고르고, 자동은 키를 지운다', () => {
-    setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
-    expect(screen.getByTestId('inspector-source-side-auto').className).toContain('is-active');
-    expect(screen.getByTestId('inspector-target-side-auto').className).toContain('is-active');
-    for (const [side, name] of [['top', '위'], ['right', '오른쪽'], ['bottom', '아래'], ['left', '왼쪽']]) {
-      const button = screen.getByTestId(`inspector-target-side-${side}`);
-      expect(button.getAttribute('title')).toBe(name);
-      expect(button.getAttribute('aria-label')).toBe(name);
-    }
-
-    fireEvent.click(screen.getByTestId('inspector-source-side-right'));
-    fireEvent.click(screen.getByTestId('inspector-target-side-left'));
-    expect(yEdge('e1').toJSON()).toMatchObject({ sourceSide: 'right', targetSide: 'left' });
-    expect(screen.getByTestId('inspector-source-side-right').className).toContain('is-active');
-    expect(screen.getByTestId('inspector-target-side-left').className).toContain('is-active');
-    expect(screen.getByTestId('inspector-target-side-right').className ?? '').not.toContain('is-active');
-
-    fireEvent.click(screen.getByTestId('inspector-source-side-auto'));
-    expect(yEdge('e1').has('sourceSide')).toBe(false);
-    expect(yEdge('e1').get('targetSide')).toBe('left');
-    // 다른 값은 그대로다
-    expect(yEdge('e1').toJSON()).toMatchObject({ source: '학생', target: '수강', double: false, label: '', role: '' });
-  });
-
-  it('줄 머리에 양 끝 도형 이름을 적고, 마름모가 있으면 꼭짓점 안내를 보여 준다', () => {
-    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '학생', '나이')], ['e1']);
-    const inspector = screen.getByTestId('inspector');
-    expect(Array.from(inspector.querySelectorAll('.inspector-ellipsis'), (el) => el.textContent)).toEqual(['학생', '수강']);
-    expect(inspector.textContent).toContain('마름모는 고른 방향의 꼭짓점에 붙습니다.');
-
-    act(() => useUi.getState().setSelection(['e2']));
+    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '역할 이름', '선 모양']);
+    expect(screen.queryByTestId('inspector-source-side-auto')).toBeNull();
+    expect(screen.queryByTestId('inspector-anchor-reset')).toBeNull();
     expect(screen.getByTestId('inspector').textContent).not.toContain('마름모는');
-    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '붙는 위치', '선 모양']);
   });
 
   it('선 모양: 기본은 직선이고 꺾은선은 직접 고른다', () => {
@@ -444,8 +383,8 @@ describe('선이 붙는 위치와 선 모양', () => {
     expect(yEdge('e1').has('shape')).toBe(false);
 
     // 붙는 면을 정해도 직선이다
+    remote(() => yEdge('e2').set('sourceSide', 'bottom'));
     act(() => useUi.getState().setSelection(['e2']));
-    fireEvent.click(screen.getByTestId('inspector-source-side-bottom'));
     expect(yEdge('e2').has('shape')).toBe(false);
     expect(screen.getByTestId('inspector-shape-straight').className).toContain('is-active');
   });
@@ -464,23 +403,6 @@ describe('선이 붙는 위치와 선 모양', () => {
     // 면을 정한 쪽 선도 같은 기본을 따른다
     act(() => useUi.getState().setSelection(['e1']));
     expect(screen.getByTestId('inspector-shape-elbow').className).toContain('is-active');
-  });
-
-  it('붙는 위치 초기화: 양쪽 면과 모양을 한 번에 자동으로', () => {
-    setup(nodes(), [e('e1', '학생', '수강', { sourceSide: 'top', targetSide: 'bottom', shape: 'straight', label: 'N' })], ['e1']);
-    const reset = screen.getByTestId('inspector-anchor-reset') as HTMLButtonElement;
-    expect(reset.disabled).toBe(false);
-    fireEvent.click(reset);
-    expect(yEdge('e1').toJSON()).toEqual({ id: 'e1', source: '학생', target: '수강', double: false, label: 'N', role: '' });
-    expect(room.undo.undoStack).toHaveLength(1);
-    expect((screen.getByTestId('inspector-anchor-reset') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByText('양 끝 바꾸기')).toBeNull();
-  });
-
-  it('다른 사람이 붙는 위치를 바꾸면 화면에 반영한다', () => {
-    setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
-    remote(() => yEdge('e1').set('targetSide', 'top'));
-    expect(screen.getByTestId('inspector-target-side-top').className).toContain('is-active');
   });
 
   it('여러 선: 선 모양만 한꺼번에 바꾸고 붙는 위치는 보여 주지 않는다', () => {

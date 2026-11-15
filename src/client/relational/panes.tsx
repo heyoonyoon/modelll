@@ -6,148 +6,64 @@
  *
  * 이 파일은 엔진을 함께 가져온다. 방 화면은 이 파일을 따로 내려받고(lazy), 탭 제목과 아이콘은 paneMeta.tsx 에서 바로 가져온다.
  */
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Y from 'yjs';
 import { copyText } from '../ai';
 import { useRoom, useTitle } from '../collab/hooks';
 import { safeFilename } from '../export/exporters';
 import { useT, type MessageKey } from '../i18n';
 import { toast } from '../ui/toast';
-import { downloadText, icons, ProblemIcon, stopKeys } from './common';
+import { downloadText, icons, ProblemIcon } from './common';
 import {
   applyRelationalEdit,
   columnKey,
   deriveIe,
   getColumnSettingsMap,
+  getIePositionsMap,
   getRelationalText,
   layoutIe,
   parseRelational,
   planRenameColumn,
   planRenameTable,
   planSetKeys,
+  planSetIdentifying,
+  planRepairKeys,
+  countRepairableKeys,
+  nameKey,
+  planAddTable,
+  planDeleteTable,
+  planAddColumn,
+  planDeleteColumn,
+  planAddRelationship,
+  planDeleteRelationship,
   readColumnSettings,
+  readIePositions,
+  setIePosition,
   readRelationalSource,
-  readRoomDialect,
-  RELATIONAL_META,
   setColumnSetting,
-  setRoomDialect,
   toSql,
   type ColumnSettings,
   type RelEditError,
   type RelEditPlan,
   type IeModel,
+  type IePositions,
   type ParseResult,
   type RelProblem,
-  type SqlDialect,
 } from './engine';
 import { IeDiagram, type IeEditor } from './IeDiagram';
 import { PaneFrame, isNarrow, useFrame } from './paneParts';
-import { revealInEditor, setDialect, useRelPanes } from './paneStore';
+import { DIALECT_LABEL, DialectSelect, useDialect } from './DialectSelect';
+import { revealInEditor } from './paneStore';
 import { RelationalEditor, useYSource, type EditorHandle } from './RelationalEditor';
-import { CellMenu, TYPE_OPTIONS } from './pickers';
+import { TYPE_OPTIONS } from './pickers';
 import { ColumnSettingsTable, SqlCode, type SettingsTable } from './SqlParts';
-import { DIALECTS } from './storage';
 import { UNDERLINE_KEYS } from './yTextBinding';
 import { track } from '../telemetry';
 
 export { paneTitleKey, PaneIcon } from './paneMeta';
 
-/** IE 다이어그램 pane에서 기호 설명을 기호 버튼으로 접는 너비 */
-const IE_COMPACT = 520;
 /** SQL pane에서 SQL과 컬럼 설정 표를 나란히 두는 너비 */
 const SQL_SIDE = 820;
-
-const DIALECT_LABEL: Record<SqlDialect, string> = { mysql: 'MySQL', postgresql: 'PostgreSQL', oracle: 'Oracle' };
-
-/**
- * 방에서 고른 DBMS. 방 문서에 있어 팀원과 함께 쓴다. 아직 아무도 고르지 않은 방이면
- * 이 브라우저에서 마지막으로 고른 값(없으면 기본값)을 보여 준다.
- */
-function useDialect(): SqlDialect {
-  const room = useRoom();
-  const local = useRelPanes((s) => s.dialect);
-  const [shared, setShared] = useState<SqlDialect | null>(() => readRoomDialect(room.doc));
-  useEffect(() => {
-    const update = () => setShared(readRoomDialect(room.doc));
-    update();
-    const meta = room.doc.getMap(RELATIONAL_META);
-    meta.observe(update);
-    return () => meta.unobserve(update);
-  }, [room]);
-  return shared ?? local;
-}
-
-/**
- * DBMS 고르기. IE와 SQL이 같은 값을 쓰고, 방 문서에 저장해 팀원 화면에도 바로 바뀐다.
- * 운영체제 select 대신 앱의 메뉴를 펼친다(지금 값에 체크, 방향키와 Enter, Esc나 바깥 누르기로 닫기).
- */
-function DialectSelect({ testId }: { testId: string }) {
-  const t = useT();
-  const room = useRoom();
-  const dialect = useDialect();
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const labelId = `${useId().replace(/[^a-zA-Z0-9_-]/g, '')}-dialect`;
-  const choose = (d: SqlDialect) => {
-    setRoomDialect(room.doc, d);
-    // 새 방에서 처음 보여 줄 값으로도 기억한다
-    setDialect(d);
-  };
-  const close = (refocus: boolean) => {
-    setOpen(false);
-    if (refocus) buttonRef.current?.focus();
-  };
-  const onButtonKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    stopKeys(e);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      setOpen(true);
-    } else if (e.key === 'Escape' && open) {
-      e.preventDefault();
-      close(true);
-    }
-  };
-  return (
-    <div className="rp-select">
-      <span className="rp-select-label" id={labelId}>
-        {t('sqlView.dialect')}
-      </span>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={`btn btn-ghost rp-btn rp-select-button${open ? ' is-active' : ''}`}
-        data-testid={testId}
-        data-value={dialect}
-        title={t('sqlView.dialect')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-labelledby={`${labelId} ${labelId}-value`}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={onButtonKeyDown}
-        onKeyUp={stopKeys}
-      >
-        <span id={`${labelId}-value`}>{DIALECT_LABEL[dialect]}</span>
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <CellMenu
-          anchor={() => buttonRef.current}
-          label={t('sqlView.dialect')}
-          choices={DIALECTS.map((d) => ({ value: d, label: DIALECT_LABEL[d] }))}
-          current={dialect}
-          testId={`${testId}-menu`}
-          onPick={(v) => {
-            choose(v as SqlDialect);
-            close(true);
-          }}
-          onClose={close}
-        />
-      )}
-    </div>
-  );
-}
 
 // ───────────────────────── 방 문서 읽기 ─────────────────────────
 
@@ -294,6 +210,32 @@ export function ProblemBadge({ problems }: { problems: readonly RelProblem[] }) 
   );
 }
 
+/** (추가) 기본키와 어긋난 외래키를 한 번에 지금 기본키에 맞춘다. 고칠 수 있는 것이 있을 때만 보인다(되돌리기 한 번) */
+function RepairKeysButton() {
+  const t = useT();
+  const room = useRoom();
+  const ytext = useMemo(() => getRelationalText(room.doc), [room]);
+  const source = useYSource(ytext);
+  const count = useMemo(() => countRepairableKeys(source), [source]);
+  if (count === 0) return null;
+  const label = t('relView.ie.repairKeys');
+  return (
+    <button
+      type="button"
+      className="rel-problem-badge"
+      data-testid="ie-repair-keys"
+      title={label}
+      onClick={() => {
+        const plan = planRepairKeys(readRelationalSource(room.doc));
+        if (!plan.ok) toast(t(EDIT_ERROR_KEY[plan.error]), 'error');
+        else applyRelationalEdit(room.doc, plan, IE_ORIGIN);
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 /** IE 그림에서 고친 것의 origin. 그림의 되돌리기(⌘Z)는 이 origin의 변경만 되돌린다 */
 export const IE_ORIGIN = 'ie-edit';
 
@@ -305,18 +247,42 @@ const EDIT_ERROR_KEY: Record<RelEditError, MessageKey> = {
   duplicate: 'relView.ie.error.duplicate',
   breaks: 'relView.ie.error.breaks',
   composite: 'relView.ie.error.composite',
+  'no-primary-key': 'relView.ie.error.noPrimaryKey',
+  'key-cycle': 'relView.ie.error.keyCycle',
 };
 
+/** (추가) 방 문서의 IE 상자 자리. 누가 옮기든 바로 다시 읽는다 */
+function useIePositions(): IePositions {
+  const room = useRoom();
+  const [state, setState] = useState(() => {
+    const positions = readIePositions(room.doc);
+    return { positions, json: JSON.stringify(positions) };
+  });
+  useEffect(() => {
+    const map = getIePositionsMap(room.doc);
+    const update = () => {
+      const positions = readIePositions(room.doc);
+      const json = JSON.stringify(positions);
+      setState((cur) => (cur.json === json ? cur : { positions, json }));
+    };
+    update();
+    map.observe(update);
+    return () => map.unobserve(update);
+  }, [room]);
+  return state.positions;
+}
+
 /**
- * IE 그림 안 편집. 이름과 기본키는 관계 모델 글을 고치고(글이 원본, IE는 글에서 다시 유도된다),
- * 타입과 NULL은 컬럼 설정을 고친다. 모두 방 문서라 팀원에게 바로 보인다. 그림 전용 되돌리기를 둔다.
+ * IE 그림 안 편집. 이름, 기본키, 테이블, 컬럼, 관계는 관계 모델 글을 고치고(글이 원본, IE는 글에서 다시 유도된다),
+ * 타입과 NULL은 컬럼 설정을, 상자 자리는 IE 자리를 고친다. 모두 방 문서라 팀원에게 바로 보인다.
+ * 모두 IE_ORIGIN으로 고쳐서 그림 전용 되돌리기와 사용 통계(ie_edit)가 알아본다.
  */
 function useIeEditor(): IeEditor {
   const t = useT();
   const room = useRoom();
   const undoRef = useRef<Y.UndoManager | null>(null);
   useEffect(() => {
-    const undo = new Y.UndoManager([getRelationalText(room.doc), getColumnSettingsMap(room.doc)], {
+    const undo = new Y.UndoManager([getRelationalText(room.doc), getColumnSettingsMap(room.doc), getIePositionsMap(room.doc)], {
       trackedOrigins: new Set([IE_ORIGIN]),
       captureTimeout: 0,
     });
@@ -327,17 +293,75 @@ function useIeEditor(): IeEditor {
     };
   }, [room]);
   return useMemo(() => {
+    const doc = room.doc;
+    const message = (error: RelEditError) => t(EDIT_ERROR_KEY[error]);
     const run = (plan: RelEditPlan): string | null => {
-      if (!plan.ok) return t(EDIT_ERROR_KEY[plan.error]);
-      applyRelationalEdit(room.doc, plan, IE_ORIGIN);
+      if (!plan.ok) return message(plan.error);
+      applyRelationalEdit(doc, plan, IE_ORIGIN);
       return null;
     };
-    const source = () => readRelationalSource(room.doc);
-    return {
-      setColumn: (table, column, patch) => (setColumnSetting(room.doc, table, column, patch, IE_ORIGIN) ? null : t('relView.ie.typeInvalid')),
+    const source = () => readRelationalSource(doc);
+    const linkChild = (linkId: string) => linkId.replace(/#fk\d+$/, '');
+    const editor: IeEditor = {
+      setColumn: (table, column, patch) => (setColumnSetting(doc, table, column, patch, IE_ORIGIN) ? null : t('relView.ie.typeInvalid')),
       renameColumn: (table, column, next) => run(planRenameColumn(source(), table, column, next)),
       renameTable: (table, next) => run(planRenameTable(source(), table, next)),
       setKeys: (table, column, want) => run(planSetKeys(source(), table, column, want)),
+      addTable: (at) => {
+        const plan = planAddTable(source());
+        if (!plan.ok) return { ok: false, message: message(plan.error) };
+        // 글과 자리를 한 번에 고친다(되돌리기 한 번에 함께 돌아간다)
+        doc.transact(() => {
+          applyRelationalEdit(doc, plan, IE_ORIGIN);
+          setIePosition(doc, plan.table, at, IE_ORIGIN);
+        }, IE_ORIGIN);
+        return { ok: true, table: plan.table };
+      },
+      deleteTable: (table) => run(planDeleteTable(source(), table)),
+      addColumn: (table) => {
+        const plan = planAddColumn(source(), table);
+        if (!plan.ok) return { ok: false, message: message(plan.error) };
+        applyRelationalEdit(doc, plan, IE_ORIGIN);
+        return { ok: true, column: plan.column };
+      },
+      deleteColumn: (table, column) => run(planDeleteColumn(source(), table, column)),
+      addRelationship: (child, parent, identifying) => {
+        const plan = planAddRelationship(source(), child, parent, { identifying });
+        if (!plan.ok) return { ok: false, message: message(plan.error) };
+        applyRelationalEdit(doc, plan, IE_ORIGIN);
+        return { ok: true, link: `${child}#fk${plan.fkIndex + 1}` };
+      },
+      deleteRelationship: (linkId, dropColumns) => run(planDeleteRelationship(source(), linkChild(linkId), linkId, { dropColumns })),
+      setIdentifying: (child, columns, identifying) => {
+        // 식별 관계는 외래키 컬럼이 모두 자식의 기본키다. 자식의 기본키가 바뀌므로 자식을 가리키는 외래키로 전파한다
+        // (planSetIdentifying, 한 트랜잭션이라 되돌리기 한 번에 돌아간다). 그림은 선의 컬럼 목록을 넘기므로 그것으로 외래키를 찾는다
+        const src = source();
+        const def = parseRelational(src).schema.tables.find((t) => nameKey(t.name) === nameKey(child));
+        const same = (fk: { columns: string[] }) => fk.columns.length === columns.length && fk.columns.every((c, i) => nameKey(c) === nameKey(columns[i]));
+        const index = def ? def.foreignKeys.findIndex(same) : -1;
+        if (index < 0) return message('not-found');
+        return run(planSetIdentifying(src, child, index, identifying));
+      },
+      moveTables: (points) => {
+        doc.transact(() => {
+          for (const [table, p] of Object.entries(points)) setIePosition(doc, table, { x: Math.round(p.x), y: Math.round(p.y) }, IE_ORIGIN);
+        }, IE_ORIGIN);
+      },
+      resetPositions: () => {
+        const map = getIePositionsMap(doc);
+        if (map.size === 0) return false;
+        doc.transact(() => {
+          for (const key of [...map.keys()]) map.delete(key);
+        }, IE_ORIGIN);
+        return true;
+      },
+      transact<T>(fn: () => T): T {
+        let out!: T;
+        doc.transact(() => {
+          out = fn();
+        }, IE_ORIGIN);
+        return out;
+      },
       undo: (redo) => {
         const u = undoRef.current;
         if (!u) return;
@@ -345,42 +369,47 @@ function useIeEditor(): IeEditor {
         else u.undo();
       },
     };
+    return editor;
   }, [room, t]);
 }
 
-/** 관계 모델 글에서 유도한 IE(까마귀발) 그림. 확대 버튼과 기호 설명은 그림 위에 있다. 그림 안에서 타입, NULL, 기본키, 이름을 고친다 */
+/**
+ * 관계 모델 글에서 유도한 IE(까마귀발) 그림. 확대 버튼은 그림 위에 있고 DBMS는 위쪽 바에서 고른다. 그림 안에서 타입, NULL, 기본키, 이름을 고치고
+ * (추가) 테이블, 컬럼, 관계를 더하고 지우며 상자를 옮긴다. 글이 비어 있어도 그림에서 바로 시작할 수 있다.
+ * 글에 오류가 있어도 막지 않는다(IE와 관계 모델은 같은 것이다). 고칠 동작이 새 오류를 만들 때만 그 동작을 알리고 하지 않는다.
+ * 기본키와 어긋난 외래키가 있으면 문제 배지 옆에 '자동으로 맞추기'를 보인다(planRepairKeys).
+ */
 export function IePane() {
-  const { parsed, settings, hasText } = useRelationalModel();
+  const { parsed, settings } = useRelationalModel();
   const model = useMemo(() => deriveIe(parsed.schema, settings), [parsed.schema, settings]);
-  const layout = useMemo(() => layoutIe(model), [model]);
+  const positions = useIePositions();
+  const layout = useMemo(() => layoutIe(model, positions), [model, positions]);
   const editor = useIeEditor();
   const t = useT();
   const dialect = useDialect();
   const { frameRef, width } = useFrame();
-  const compact = isNarrow(width, IE_COMPACT);
   return (
     <PaneFrame
       pane="ie"
       frameRef={frameRef}
       width={width}
-      narrow={compact}
-      tools={<DialectSelect testId="ie-dialect" />}
-      toolsLabel={t('relPane.title.ie')}
-      bodyClass="rp-body-fill"
+      narrow={false}
+      bodyClass="rp-body-fill rp-body-flush"
       attrs={{ 'data-dialect': dialect }}
     >
-      {!hasText ? (
-        <EmptyLine testId="ie-empty" />
-      ) : (
-        <IeDiagram
-          model={model}
-          layout={layout}
-          editor={editor}
-          typeOptions={TYPE_OPTIONS[dialect]}
-          compactLegend={compact}
-          overlay={<ProblemBadge problems={parsed.problems} />}
-        />
-      )}
+      <IeDiagram
+        model={model}
+        layout={layout}
+        editor={editor}
+        typeOptions={TYPE_OPTIONS[dialect]}
+        tools={<DialectSelect testId="ie-dialect-select" className="dialect-select-compact" />}
+        overlay={
+          <>
+            <ProblemBadge problems={parsed.problems} />
+            <RepairKeysButton />
+          </>
+        }
+      />
     </PaneFrame>
   );
 }
@@ -451,7 +480,8 @@ export function SqlPane() {
 
   const tools = (
     <>
-      <DialectSelect testId="sql-dialect" />
+      {/* 방 전체가 함께 쓰는 DBMS(IE의 타입 목록과 SQL이 따른다) */}
+      <DialectSelect className="dialect-select-compact" />
       <HeadButton
         icon={icons.copy}
         label={t('sqlView.copy')}

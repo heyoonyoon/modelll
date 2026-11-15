@@ -19,21 +19,18 @@ function diamond(a: number, b: number): string {
   return `${C},${C - b} ${C + a},${C} ${C},${C + b} ${C - a},${C}`;
 }
 
-/** 타원 안에 글자를 뜻하는 굵은 막대와 그 아래 밑줄 */
+/** 타원 안의 밑줄 하나(식별자는 실선, 부분 키는 점선) */
 function keyMarks(color: string, dashed: boolean): ReactNode {
   return (
-    <>
-      <line x1={9.5} y1={12.2} x2={18.5} y2={12.2} strokeWidth={2.2} strokeLinecap="round" />
-      <line
-        x1={dashed ? 8.6 : 8.5}
-        y1={16.6}
-        x2={dashed ? 19.6 : 19.5}
-        y2={16.6}
-        stroke={color}
-        strokeWidth={1.3}
-        strokeDasharray={dashed ? '2.6 1.6' : undefined}
-      />
-    </>
+    <line
+      x1={dashed ? 8.6 : 8.5}
+      y1={16.2}
+      x2={dashed ? 19.6 : 19.5}
+      y2={16.2}
+      stroke={color}
+      strokeWidth={1.4}
+      strokeDasharray={dashed ? '2.6 1.6' : undefined}
+    />
   );
 }
 

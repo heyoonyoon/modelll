@@ -7,7 +7,7 @@ import { RoomContext } from '../collab/hooks';
 import type { Room } from '../collab/room';
 import { setLocale, t } from '../i18n';
 import { PANE_IDS } from '../layout/types';
-import { columnKey, getRelationalText, layoutIe, readColumnSettings, readRelationalSource, setColumnSetting, type IeModel } from './engine';
+import { columnKey, getRelationalText, layoutIe, readColumnSettings, readIePositions, readRelationalSource, setColumnSetting, setIePosition, type IeModel } from './engine';
 import { IeDiagram } from './IeDiagram';
 import { IePane, PaneIcon, RelationalTextPane, SqlPane, paneTitleKey } from './panes';
 import { resetRelPanes, useRelPanes } from './paneStore';
@@ -330,16 +330,20 @@ describe('IE 그림의 선 끝', () => {
       ['INT', true],
     ]);
     expect(container.querySelector('[data-table="C"] .ie-type')).toBeNull();
-    // 기호 설명에 최소를 모르는 끝도 있다
-    expect(screen.getByTestId('ie-legend').textContent).toContain('하나(최소 미정)');
+    // 기호 설명 상자는 그림 안에 그리지 않는다. 칸 이름 줄은 언제나 있다
+    expect(screen.queryByTestId('ie-legend')).toBeNull();
+    expect(screen.getByTestId('ie-colhead-A').textContent).toBe('키이름타입NULL');
   });
 });
 
 describe('IE pane', () => {
-  it('글이 없으면 한 줄만 보인다', () => {
+  it('글이 없으면 빈 그림에 테이블 추가 버튼을 보인다(글을 먼저 적으라고 하지 않는다)', () => {
     inRoom(roomWith(''), <IePane />);
-    expect(screen.getByTestId('ie-empty').textContent).toBe('관계 모델을 적으면 여기에 나타납니다.');
-    expect(screen.queryByTestId('ie-diagram')).toBeNull();
+    expect(screen.getByTestId('ie-diagram')).not.toBeNull();
+    expect(screen.getByTestId('ie-empty').textContent).toContain('아직 테이블이 없습니다');
+    expect(screen.getByTestId('ie-empty').textContent).not.toContain('관계 모델을 적으면');
+    expect(screen.getByTestId('ie-empty-add').getAttribute('aria-disabled')).toBeNull();
+    expect(screen.getByTestId('ie-tools').getAttribute('role')).toBe('toolbar');
   });
 
   it('글에서 테이블과 선을 그리고, 글이 바뀌면 바로 따라간다', () => {
@@ -483,14 +487,17 @@ describe('IE pane', () => {
     fireEvent.keyDown(screen.getByTestId('ie-type-input-학생.학번'), { key: 'ArrowDown' });
     fireEvent.keyDown(screen.getByTestId('ie-type-input-학생.학번'), { key: 'Enter' });
     expect(typeText('학생.학번')).toBe('BIGINT');
-    // DBMS는 IE 머리 줄에서도 고르고 SQL과 같은 값을 쓴다
-    fireEvent.click(screen.getByTestId('ie-dialect'));
-    expect(screen.getByTestId('ie-dialect').getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(screen.getByTestId('ie-dialect-menu-oracle'));
-    expect(screen.queryByTestId('ie-dialect-menu')).toBeNull();
-    expect(screen.getByTestId('sql-dialect').dataset.value).toBe('oracle');
-    expect(screen.getByTestId('sql-dialect').textContent).toBe('Oracle');
+    // DBMS는 pane이 아니라 위쪽 바에서 한 번 고르고 IE와 SQL이 같은 값을 쓴다
+    expect(screen.queryByTestId('ie-dialect')).toBeNull();
+    expect(screen.queryByTestId('sql-dialect')).toBeNull();
+    fireEvent.click(screen.getByTestId('dialect-select'));
+    expect(screen.getByTestId('dialect-select').getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByTestId('dialect-select-menu-oracle'));
+    expect(screen.queryByTestId('dialect-select-menu')).toBeNull();
+    expect(screen.getByTestId('dialect-select').dataset.value).toBe('oracle');
+    expect(screen.getByTestId('dialect-select').textContent).toContain('Oracle');
     expect(screen.getByTestId('pane-sql').dataset.dialect).toBe('oracle');
+    expect(screen.getByTestId('pane-ie').dataset.dialect).toBe('oracle');
     press(cell('ie-type-학생.학과코드'));
     const oracle = [...screen.getByTestId('ie-type-input-학생.학과코드-options').querySelectorAll('[role="option"]')].map((o) => o.textContent);
     expect(oracle).toContain('VARCHAR2(255)');
@@ -657,17 +664,26 @@ describe('IE pane', () => {
     expect(getRelationalText(room.doc).toString()).toBe(before);
   });
 
-  it('바꾸면 글에 오류가 생기는 외래키는 쓰지 않고 고르는 칸에 이유를 보인다', () => {
+  it('기본키를 더하면 그 테이블을 가리키는 외래키로 전파해 글이 깨지지 않는다(되돌리기 한 번에 돌아간다)', () => {
     const room = roomWith(MODEL);
     inRoom(room, <IePane />);
     const before = getRelationalText(room.doc).toString();
-    // 과목에 기본키를 더하면 수강의 references 과목 (과목코드)와 어긋난다
+    // 과목에 기본키를 더하면 수강(과목의 식별 자식)에 과목명이 기본키로 더해지고 references 목록이 늘어난다
     choose('ie-key-과목.과목명', 'key', 'pkfk');
     fireEvent.click(screen.getByTestId('ie-fk-confirm'));
-    expect(screen.getByTestId('ie-fk-error').textContent).toBe('이렇게 바꾸면 관계 모델 글에 오류가 생깁니다.');
-    expect(getRelationalText(room.doc).toString()).toBe(before);
-    fireEvent.click(screen.getByTestId('ie-fk-cancel'));
     expect(screen.queryByTestId('ie-fk-form')).toBeNull();
+    const lines = getRelationalText(room.doc).toString().split('\n');
+    expect(lines.slice(3, 8)).toEqual([
+      '과목 (과목코드, 과목명)',
+      'Foreign Key (과목명) references 학과 (학과코드)',
+      '수강 (학번, 과목코드, 성적, 과목명)',
+      'Foreign Key (학번) references 학생',
+      'Foreign Key (과목코드, 과목명) references 과목 (과목코드, 과목명)',
+    ]);
+    expect(tag('수강.과목명')).toBe('PKFK');
+    expect(screen.queryByTestId('ie-problem-badge')).toBeNull();
+    fireEvent.keyDown(document.querySelector('.ie-stage')!, { key: 'z', code: 'KeyZ', ctrlKey: true });
+    expect(getRelationalText(room.doc).toString()).toBe(before);
   });
 
   it('여러 컬럼으로 된 외래키의 한 컬럼은 FK를 끌 수 없고 이유를 알린다', () => {
@@ -679,23 +695,35 @@ describe('IE pane', () => {
     expect(useToasts.getState().items.map((i) => i.message).join('\n')).toContain('여러 컬럼으로 된 외래키');
   });
 
-  it('글에 오류가 있으면 이름은 고치지 않고 이유를 알린다. 기본키는 켰다가 생긴 오류도 그림에서 다시 끌 수 있다', () => {
-    const room = roomWith(MODEL);
+  it('글에 오류가 있어도 그림에서 고친다. 기본키와 어긋난 외래키는 자동으로 맞추기 한 번에 고친다', () => {
+    // 글에서 과목명에 밑줄을 그어 수강의 references 과목 (과목코드) 목록과 기본키 수가 어긋났다
+    const room = roomWith(rich`학과 (${'학과코드'}, 학과명)
+학생 (${'학번'}, 이름, 학과코드)
+Foreign Key (학과코드) references 학과
+과목 (${'과목코드'}, ${'과목명'})
+수강 (${'학번'}, ${'과목코드'}, 성적)
+Foreign Key (학번) references 학생
+Foreign Key (과목코드) references 과목 (과목코드)
+`);
     inRoom(room, <IePane />);
-    // 과목에 기본키를 더하면 수강의 references 과목 (과목코드) 목록과 기본키 수가 어긋나 오류가 된다
-    choose('ie-key-과목.과목명', 'key', 'pk');
-    expect(screen.getByTestId('ie-problem-badge').getAttribute('aria-label')).toMatch(/^오류/);
-    const before = getRelationalText(room.doc).toString();
+    expect(screen.getByTestId('ie-problem-badge').getAttribute('aria-label')).toMatch(/^오류 1/);
     press(cell('ie-name-학생.이름'));
     press(cell('ie-name-학생.이름'));
     const input = screen.getByTestId('ie-name-input-학생.이름') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '성명' } });
     fireEvent.blur(input);
-    expect(getRelationalText(room.doc).toString()).toBe(before);
-    expect(useToasts.getState().items.map((i) => i.message).join('\n')).toContain('관계 모델 글에 오류가 있어');
-    // 기본키를 다시 끄면 오류가 없어진다
-    choose('ie-key-과목.과목명', 'key', 'none');
+    expect(getRelationalText(room.doc).toString().split('\n')[1]).toBe('학생 (학번, 성명, 학과코드)');
+    expect(useToasts.getState().items.map((i) => i.message).join('\n')).not.toContain('오류');
+    // 자동으로 맞추기: 수강(과목의 식별 자식)에 과목명이 기본키로 더해진다
+    fireEvent.click(screen.getByTestId('ie-repair-keys'));
+    expect(getRelationalText(room.doc).toString().split('\n').slice(4)).toEqual([
+      '수강 (학번, 과목코드, 성적, 과목명)',
+      'Foreign Key (학번) references 학생',
+      'Foreign Key (과목코드, 과목명) references 과목 (과목코드, 과목명)',
+      '',
+    ]);
     expect(screen.queryByTestId('ie-problem-badge')).toBeNull();
+    expect(screen.queryByTestId('ie-repair-keys')).toBeNull();
   });
 
   it('글을 고치면 IE가 바로 따라오고, 글에서 컬럼 이름을 바꾸면 설정 없는 새 컬럼이 된다', () => {
@@ -715,6 +743,338 @@ describe('IE pane', () => {
 });
 
 // ───────────────────────── SQL ─────────────────────────
+
+describe('IE pane 구조 편집', () => {
+  /** 끌지 않고 누른다 */
+  const press = (el: Element, x = 10, y = 10) => {
+    fireEvent.pointerDown(el, { pointerId: 1, button: 0, clientX: x, clientY: y });
+    fireEvent.pointerUp(el, { pointerId: 1, button: 0, clientX: x, clientY: y });
+  };
+  /** el에서 눌러 to에서 놓는다(그 사이 dx, dy만큼 움직인다) */
+  const dragTo = (el: Element, to: Element, dx: number, dy: number) => {
+    fireEvent.pointerDown(el, { pointerId: 1, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(el, { pointerId: 1, button: 0, clientX: 10 + dx / 2, clientY: 10 + dy / 2 });
+    fireEvent.pointerMove(el, { pointerId: 1, button: 0, clientX: 10 + dx, clientY: 10 + dy });
+    fireEvent.pointerUp(to, { pointerId: 1, button: 0, clientX: 10 + dx, clientY: 10 + dy });
+  };
+  const boxOf = (table: string) => document.querySelector(`g.ie-table[data-table="${table}"] .ie-box`)!;
+  const textOf = (room: Room) => getRelationalText(room.doc).toString();
+  const underlinedWords = (room: Room) => {
+    const src = readRelationalSource(room.doc);
+    return src.underlines.map((u) => src.text.slice(u.from, u.to));
+  };
+  const toasts = () => useToasts.getState().items.map((i) => i.message).join('\n');
+  const stage = () => document.querySelector('.ie-stage')!;
+  const DEPT = rich`부서 (${'부서번호'}, 부서명)
+사원 (${'사번'}, 이름)
+`;
+
+  beforeEach(() => useToasts.setState({ items: [] }));
+
+  it('빈 그림에서 테이블을 더하면 글에 Table1 (id)가 생기고(id는 기본키), 자리를 적고, 바로 이름을 고친다', () => {
+    const room = roomWith('');
+    inRoom(room, <IePane />);
+    fireEvent.click(screen.getByTestId('ie-empty-add'));
+    expect(textOf(room)).toBe('Table1 (id)');
+    expect(underlinedWords(room)).toEqual(['id']);
+    expect(Object.keys(readIePositions(room.doc))).toEqual(['table1']);
+    expect(screen.queryByTestId('ie-empty')).toBeNull();
+    const input = screen.getByTestId('ie-table-name-input-Table1') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '학생' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(textOf(room)).toBe('학생 (id)');
+    // 이름을 바꾸면 자리도 따라간다
+    expect(Object.keys(readIePositions(room.doc))).toEqual(['학생']);
+    // 도구 줄의 테이블 추가는 겹치지 않는 이름을 고르고 새 테이블도 IE_ORIGIN이라 ⌘Z로 글과 자리가 함께 돌아간다
+    fireEvent.click(screen.getByTestId('ie-tool-add-table'));
+    // 버튼만 눌러서는 생기지 않고, 그림을 누른 자리에 놓인다
+    expect(textOf(room)).toBe('학생 (id)');
+    press(document.querySelector('.ie-svg')!, 600, 400);
+    expect(textOf(room)).toBe('학생 (id)\nTable1 (id)');
+    fireEvent.keyDown(screen.getByTestId('ie-table-name-input-Table1'), { key: 'Escape' });
+    fireEvent.keyDown(stage(), { key: 'z', code: 'KeyZ', ctrlKey: true });
+    expect(textOf(room)).toBe('학생 (id)');
+    expect(Object.keys(readIePositions(room.doc))).toEqual(['학생']);
+  });
+
+  it('빈 곳을 두 번 눌러도 테이블은 생기지 않는다. 테이블 추가 버튼을 누른 뒤 누른 자리에 놓이고, Esc는 그만둔다', () => {
+    const room = roomWith('학생 (id)');
+    inRoom(room, <IePane />);
+    const svg = document.querySelector('.ie-svg')!;
+    press(svg, 400, 300);
+    press(svg, 400, 300);
+    expect(textOf(room)).toBe('학생 (id)');
+    fireEvent.click(screen.getByTestId('ie-tool-add-table'));
+    expect(screen.getByTestId('ie-tool-add-table').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByTestId('ie-tool-add-table').getAttribute('aria-pressed')).toBe('false');
+    press(svg, 400, 300);
+    expect(textOf(room)).toBe('학생 (id)');
+    fireEvent.click(screen.getByTestId('ie-tool-add-table'));
+    press(svg, 400, 300);
+    expect(textOf(room)).toBe('학생 (id)\nTable1 (id)');
+    const p = readIePositions(room.doc).table1;
+    expect(p.x).toBe(400 - 110);
+    expect(p.y).toBe(300 - 20);
+  });
+
+  it('컬럼 추가는 이름만 있는 컬럼을 더하고 바로 이름을 고친다. 행의 삭제 버튼은 컬럼을 뺀다', () => {
+    const room = roomWith(MODEL);
+    inRoom(room, <IePane />);
+    fireEvent.click(screen.getByTestId('ie-add-column-학과'));
+    expect(textOf(room).split('\n')[0]).toBe('학과 (학과코드, 학과명, column1)');
+    // 타입은 추측하지 않는다
+    expect(readColumnSettings(room.doc)[columnKey('학과', 'column1')]).toBeUndefined();
+    const input = screen.getByTestId('ie-name-input-학과.column1') as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '위치' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(textOf(room).split('\n')[0]).toBe('학과 (학과코드, 학과명, 위치)');
+    fireEvent.click(screen.getByTestId('ie-delete-column-학과.위치'));
+    expect(textOf(room).split('\n')[0]).toBe('학과 (학과코드, 학과명)');
+    expect(screen.getByTestId('ie-delete-column-학과.학과명').getAttribute('aria-label')).toBe('학과 테이블의 학과명 컬럼 삭제');
+  });
+
+  it('테이블 삭제 버튼과 Delete 키는 테이블과 그 테이블에 걸린 Foreign Key 줄을 지운다', () => {
+    const room = roomWith(MODEL);
+    inRoom(room, <IePane />);
+    fireEvent.click(screen.getByTestId('ie-delete-table-학생'));
+    expect(textOf(room)).not.toContain('학생 (');
+    expect(textOf(room)).not.toContain('references 학생');
+    expect(document.querySelector('g.ie-table[data-table="학생"]')).toBeNull();
+    // 상자를 눌러 고르고 Delete
+    press(boxOf('과목'));
+    expect(document.querySelector('g.ie-table[data-table="과목"]')!.getAttribute('data-selected')).toBe('true');
+    fireEvent.keyDown(stage(), { key: 'Delete' });
+    expect(textOf(room)).not.toContain('과목 (');
+    expect(textOf(room)).not.toContain('references 과목');
+    expect(textOf(room)).toContain('수강 (학번, 과목코드, 성적)');
+  });
+
+  const dot = (table: string, side = 'right') => screen.getByTestId(`ie-connect-${table}-${side}`);
+
+  it('상자의 연결 점을 끌어 다른 상자에 놓으면 끈 쪽이 부모인 비식별 관계를 잇고, 그 관계를 고른다', () => {
+    const room = roomWith(DEPT);
+    const { container } = inRoom(room, <IePane />);
+    // 관계 그리기 도구와 자동 정렬은 없다(도구 줄은 테이블 추가 하나)
+    expect(screen.queryByTestId('ie-tool-arrange')).toBeNull();
+    // 도구 줄: 테이블 추가와 DBMS 고르기
+    expect(screen.getByTestId('ie-tools').querySelectorAll('button')).toHaveLength(2);
+    expect(screen.getByTestId('ie-dialect-select')).toBeTruthy();
+    expect(screen.queryByTestId('ie-tool-identifying')).toBeNull();
+    expect(screen.queryByTestId('ie-tool-non-identifying')).toBeNull();
+    expect(screen.queryByTestId('ie-tool-select')).toBeNull();
+    expect(dot('부서').getAttribute('data-connect-from')).toBe('부서');
+    const svg = document.querySelector('.ie-svg')!;
+    fireEvent.pointerDown(dot('부서'), { pointerId: 1, button: 0, clientX: 10, clientY: 10 });
+    // 끄는 동안 고무줄 선은 끈 연결 점에서 시작하고, 놓을 상자를 표시한다
+    fireEvent.pointerMove(boxOf('사원'), { pointerId: 1, button: 0, clientX: 300, clientY: 200 });
+    const rubber = screen.getByTestId('ie-rubber');
+    const dotMark = dot('부서').querySelector('.ie-connect-dot-mark')!;
+    expect(rubber.getAttribute('x1')).toBe(dotMark.getAttribute('cx'));
+    expect(rubber.getAttribute('y1')).toBe(dotMark.getAttribute('cy'));
+    expect(screen.getByTestId('ie-draft-target')).not.toBeNull();
+    fireEvent.pointerUp(boxOf('사원'), { pointerId: 1, button: 0, clientX: 300, clientY: 200 });
+    expect(textOf(room)).toContain('사원 (사번, 이름, 부서번호)\nForeign Key (부서번호) references 부서 (부서번호)');
+    expect(underlinedWords(room)).toEqual(['부서번호', '사번']);
+    const link = container.querySelector('.ie-link[data-link-id="사원#fk1"]')!;
+    expect(link.getAttribute('data-identifying')).toBe('false');
+    expect(link.getAttribute('data-parent')).toBe('부서');
+    expect(link.getAttribute('data-selected')).toBe('true');
+    expect(screen.queryByTestId('ie-rubber')).toBeNull();
+    // 상자는 옮기지 않는다(다른 상자 자리만 함께 적는다)
+    expect(readIePositions(room.doc).부서).toBeDefined();
+    expect(svg).not.toBeNull();
+  });
+
+  it('작은 창에서 식별과 비식별을 바꾼다(외래키 컬럼의 기본키 밑줄, 되돌리기 한 번)', () => {
+    const room = roomWith(DEPT);
+    const { container } = inRoom(room, <IePane />);
+    dragTo(dot('부서'), boxOf('사원'), 80, 120);
+    const linkOf = () => container.querySelector('.ie-link[data-link-id="사원#fk1"]')!;
+    expect(screen.getByTestId('ie-link-mode-non-identifying').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByTestId('ie-link-mode-identifying'));
+    expect(linkOf().getAttribute('data-identifying')).toBe('true');
+    expect(underlinedWords(room)).toEqual(['부서번호', '사번', '부서번호']);
+    expect(textOf(room)).toContain('Foreign Key (부서번호) references 부서 (부서번호)');
+    expect(screen.getByTestId('ie-link-mode-identifying').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByTestId('ie-link-mode-non-identifying'));
+    expect(linkOf().getAttribute('data-identifying')).toBe('false');
+    expect(underlinedWords(room)).toEqual(['부서번호', '사번']);
+    fireEvent.keyDown(stage(), { key: 'z', code: 'KeyZ', ctrlKey: true });
+    expect(linkOf().getAttribute('data-identifying')).toBe('true');
+  });
+
+  it('식별로 바꾸면 자식의 새 기본키를 손자 테이블로 전파한다(글 오류 없이, 되돌리기 한 번)', () => {
+    const room = roomWith(rich`Table1 (${'id'})
+Table2 (${'id'}, Table1_id)
+Foreign Key (Table1_id) references Table1 (id)
+Table3 (${'id'}, Table2_id, Table1_id)
+Foreign Key (Table2_id) references Table2 (id)
+Foreign Key (Table1_id) references Table1 (id)
+`);
+    const before = textOf(room);
+    const { container } = inRoom(room, <IePane />);
+    press(document.querySelector('.ie-link[data-link-id="Table2#fk1"] .ie-link-hit')!);
+    fireEvent.click(screen.getByTestId('ie-link-mode-identifying'));
+    expect(useToasts.getState().items.map((i) => i.message).join('\n')).not.toContain('오류');
+    expect(container.querySelector('.ie-link[data-link-id="Table2#fk1"]')!.getAttribute('data-identifying')).toBe('true');
+    expect(textOf(room)).toContain('Table3 (id, Table2_id, Table1_id, Table2_Table1_id)\nForeign Key (Table2_id, Table2_Table1_id) references Table2 (id, Table1_id)');
+    expect(screen.queryByTestId('ie-problem-badge')).toBeNull();
+    fireEvent.keyDown(stage(), { key: 'z', code: 'KeyZ', ctrlKey: true });
+    expect(textOf(room)).toBe(before);
+  });
+
+  it('빈 곳이나 같은 상자에 놓거나 Esc를 누르면 잇지 않는다', () => {
+    const room = roomWith(DEPT);
+    inRoom(room, <IePane />);
+    const svg = document.querySelector('.ie-svg')!;
+    dragTo(dot('부서'), svg, 300, 300);
+    expect(screen.queryByTestId('ie-rubber')).toBeNull();
+    dragTo(dot('부서', 'left'), boxOf('부서'), 30, 30);
+    fireEvent.pointerDown(dot('부서', 'top'), { pointerId: 1, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(svg, { pointerId: 1, button: 0, clientX: 200, clientY: 200 });
+    expect(screen.getByTestId('ie-rubber')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('ie-rubber')).toBeNull();
+    fireEvent.pointerUp(boxOf('사원'), { pointerId: 1, button: 0, clientX: 200, clientY: 200 });
+    expect(textOf(room)).toBe(DEPT.text);
+  });
+
+  it('선을 누르면 관계를 고르고, 작은 창에서 지운다. 기본은 외래키 컬럼도 지우고, 끄면 컬럼은 남긴다', () => {
+    const room = roomWith(MODEL);
+    inRoom(room, <IePane />);
+    press(document.querySelector('.ie-link[data-link-id="학생#fk1"] .ie-link-hit')!);
+    expect(document.querySelector('.ie-link[data-link-id="학생#fk1"]')!.getAttribute('data-selected')).toBe('true');
+    expect((screen.getByTestId('ie-link-drop-columns') as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByTestId('ie-link-delete'));
+    expect(textOf(room)).not.toContain('Foreign Key (학과코드) references 학과');
+    expect(textOf(room)).toContain('학생 (학번, 이름)\n');
+    expect(screen.queryByTestId('ie-link-pop')).toBeNull();
+
+    press(document.querySelector('.ie-link[data-link-id="수강#fk2"] .ie-link-hit')!);
+    fireEvent.click(screen.getByTestId('ie-link-drop-columns'));
+    fireEvent.keyDown(stage(), { key: 'Backspace' });
+    expect(textOf(room)).not.toContain('Foreign Key (과목코드) references 과목');
+    expect(textOf(room)).toContain('수강 (학번, 과목코드, 성적)');
+  });
+
+  it('상자를 끌면 놓을 때 한 번만 자리를 적는다(다른 상자 자리도 함께 적어 튀지 않게)', () => {
+    const room = roomWith(MODEL);
+    inRoom(room, <IePane />);
+    const before = { x: Number(boxOf('과목').getAttribute('x')), y: Number(boxOf('과목').getAttribute('y')) };
+    const updates = vi.fn();
+    room.doc.on('update', updates);
+    fireEvent.pointerDown(boxOf('과목'), { pointerId: 1, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(boxOf('과목'), { pointerId: 1, button: 0, clientX: 60, clientY: 30 });
+    fireEvent.pointerMove(boxOf('과목'), { pointerId: 1, button: 0, clientX: 110, clientY: 60 });
+    // 끄는 동안은 화면만 움직인다
+    expect(Number(boxOf('과목').getAttribute('x'))).toBe(before.x + 100);
+    expect(updates).not.toHaveBeenCalled();
+    fireEvent.pointerUp(boxOf('과목'), { pointerId: 1, button: 0, clientX: 110, clientY: 60 });
+    expect(updates).toHaveBeenCalledTimes(1);
+    const saved = readIePositions(room.doc);
+    expect(saved.과목).toEqual({ x: before.x + 100, y: before.y + 50 });
+    expect(Object.keys(saved).sort()).toEqual(['과목', '수강', '학과', '학생'].sort());
+    // 끈 뒤에는 칸을 고치지 않는다
+    expect(document.querySelector('[data-testid^="ie-type-input-"]')).toBeNull();
+    // 팀원이 옮긴 자리도 바로 보인다
+    const other = new Y.Doc();
+    Y.applyUpdate(other, Y.encodeStateAsUpdate(room.doc));
+    const sv = Y.encodeStateVector(other);
+    setIePosition(other, '학과', { x: 900, y: 700 });
+    act(() => Y.applyUpdate(room.doc, Y.encodeStateAsUpdate(other, sv), 'remote'));
+    expect(boxOf('학과').getAttribute('x')).toBe('900');
+  });
+
+  it('부모에 기본키가 없으면 관계를 맺지 않고 이유를 알린다', () => {
+    const room = roomWith('부서 (부서번호)\n사원 (사번)');
+    inRoom(room, <IePane />);
+    dragTo(dot('부서'), boxOf('사원'), 80, 120);
+    expect(textOf(room)).toBe('부서 (부서번호)\n사원 (사번)');
+    expect(toasts()).toContain('부모 테이블에 기본키가 없어서');
+  });
+
+  it('글에 오류가 있어도 구조 도구를 막지 않는다(고칠 수 없는 오류는 그대로 둔다)', () => {
+    const src = rich`학생 (${'학번'}, 학과코드)\nForeign Key (학과코드) references 학과\n`;
+    const room = roomWith(src);
+    inRoom(room, <IePane />);
+    for (const id of ['ie-tool-add-table', 'ie-add-column-학생', 'ie-delete-table-학생', 'ie-delete-column-학생.학과코드']) {
+      expect(screen.getByTestId(id).getAttribute('aria-disabled')).toBeNull();
+    }
+    expect(screen.getByTestId('ie-connect-학생-right')).not.toBeNull();
+    // 없는 테이블을 가리키는 외래키는 자동으로 맞출 수 없다
+    expect(screen.queryByTestId('ie-repair-keys')).toBeNull();
+    fireEvent.click(screen.getByTestId('ie-add-column-학생'));
+    expect(textOf(room)).toBe('학생 (학번, 학과코드, column1)\nForeign Key (학과코드) references 학과\n');
+    expect(toasts()).not.toContain('먼저 고쳐');
+  });
+
+  it('사용자의 깨진 방: 컬럼 더하기, 관계 잇기, 식별로 바꾸기가 모두 되고 자동으로 맞추기가 오류를 고친다', () => {
+    const broken = rich`Table1 (${'id'}, dwqdwq)
+Table2 (${'id'}, Table1_id)
+Foreign Key (Table1_id) references Table1 (id)
+Table3 (${'id'}, Table2_id, Table1_id)
+Foreign Key (Table2_id, Table1_id) references Table2 (id, Table1_id)
+Table4 (${'id'})`;
+    const room = roomWith(broken);
+    const { container } = inRoom(room, <IePane />);
+    expect(screen.getByTestId('ie-repair-keys')).not.toBeNull();
+    fireEvent.click(screen.getByTestId('ie-add-column-Table4'));
+    dragTo(dot('Table1'), boxOf('Table4'), 80, 120);
+    expect(textOf(room).split('\n').slice(-2)).toEqual(['Table4 (id, column1, Table1_id)', 'Foreign Key (Table1_id) references Table1 (id)']);
+    press(document.querySelector('.ie-link[data-link-id="Table2#fk1"] .ie-link-hit')!);
+    fireEvent.click(screen.getByTestId('ie-link-mode-identifying'));
+    expect(container.querySelector('.ie-link[data-link-id="Table2#fk1"]')!.getAttribute('data-identifying')).toBe('true');
+    expect(toasts()).not.toContain('오류');
+    // Table2를 건드려서 어긋났던 Table3의 외래키도 함께 맞았다
+    expect(screen.queryByTestId('ie-problem-badge')).toBeNull();
+    expect(screen.queryByTestId('ie-repair-keys')).toBeNull();
+    // 처음 글에서 자동으로 맞추기만 누르면 Table3의 어긋난 짝이 빠진다
+    const room2 = roomWith(broken);
+    cleanup();
+    inRoom(room2, <IePane />);
+    fireEvent.click(screen.getByTestId('ie-repair-keys'));
+    expect(textOf(room2).split('\n').slice(3, 5)).toEqual(['Table3 (id, Table2_id)', 'Foreign Key (Table2_id) references Table2 (id)']);
+    expect(screen.queryByTestId('ie-problem-badge')).toBeNull();
+  });
+
+  it('상자의 모든 선은 테두리와 같은 종류이고 상자 가장자리에서 끝난다. 테두리는 맨 위에 그린다', () => {
+    inRoom(roomWith(MODEL), <IePane />);
+    const g = document.querySelector('g.ie-table[data-table="학생"]')!;
+    const box = g.querySelector('.ie-box')!;
+    const x0 = Number(box.getAttribute('x'));
+    const x1 = x0 + Number(box.getAttribute('width'));
+    for (const line of g.querySelectorAll('.ie-head-line, .ie-colhead-line, .ie-row-line, .ie-divider')) {
+      expect([Number(line.getAttribute('x1')), Number(line.getAttribute('x2'))]).toEqual([x0, x1]);
+    }
+    // 테두리는 칸 바탕보다 뒤(위)에 그려진다
+    const outline = g.querySelector('.ie-box-line')!;
+    const cells = [...g.querySelectorAll('.ie-cell-hit')];
+    expect(cells.every((c) => c.compareDocumentPosition(outline) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(outline.getAttribute('height')).toBe(box.getAttribute('height'));
+    // 컬럼 추가는 상자 바로 아래 왼쪽의 버튼이고, 아래 가운데 연결 점은 상자 바로 아래에 있어 겹치지 않는다
+    const bottom = Number(box.getAttribute('y')) + Number(box.getAttribute('height'));
+    const add = g.querySelector('foreignObject.ie-add-col')!;
+    expect(Number(add.getAttribute('x'))).toBe(x0);
+    expect(Number(add.getAttribute('y'))).toBeGreaterThan(bottom);
+    const addRight = x0 + Number(add.getAttribute('width'));
+    const dotMark = g.querySelector('[data-side="bottom"] .ie-connect-dot-mark')!;
+    expect(Number(dotMark.getAttribute('cx')) - Number(dotMark.getAttribute('r'))).toBeGreaterThan(addRight);
+    expect(g.querySelector('.ie-box-open, .ie-add-row')).toBeNull();
+    // 선 끝 기호에도 넓은 투명 선이 있다
+    expect(document.querySelectorAll('.ie-link[data-link-id="학생#fk1"] .ie-link-hit').length).toBeGreaterThan(1);
+    // 관계 선에는 올려 둘 때의 후광이 있다
+    expect(document.querySelectorAll('.ie-link .ie-link-glow').length).toBe(document.querySelectorAll('.ie-link').length);
+  });
+
+  it('보기 전용(편집기 없음)에서는 도구 줄과 상자 버튼이 없다', () => {
+    const model: IeModel = { tables: [], links: [] };
+    render(<IeDiagram model={model} layout={layoutIe(model)} />);
+    expect(screen.queryByTestId('ie-tools')).toBeNull();
+    expect(screen.getByTestId('ie-empty').textContent).toBe('관계 모델을 적거나 IE 다이어그램에서 테이블을 추가하면 여기에 나타납니다.');
+  });
+});
 
 describe('컬럼 설정 표', () => {
   const tables: SettingsTable[] = [
@@ -792,7 +1152,7 @@ describe('컬럼 설정 표', () => {
 describe('SQL pane', () => {
   it('글이 없으면 한 줄만 보이고 복사와 내려받기를 막는다', () => {
     inRoom(roomWith(''), <SqlPane />);
-    expect(screen.getByTestId('sql-empty').textContent).toBe('관계 모델을 적으면 여기에 나타납니다.');
+    expect(screen.getByTestId('sql-empty').textContent).toBe('관계 모델을 적거나 IE 다이어그램에서 테이블을 추가하면 여기에 나타납니다.');
     expect((screen.getByTestId('sql-copy') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('sql-download') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -847,21 +1207,24 @@ describe('SQL pane', () => {
   });
 
   it('방언을 바꾸고 기억한다', () => {
-    inRoom(roomWith(MODEL), <SqlPane />);
-    const button = screen.getByTestId('sql-dialect');
+    inRoom(
+      roomWith(MODEL),
+      <SqlPane />,
+    );
+    const button = screen.getByTestId('dialect-select');
     // 펼친 목록은 지금 값에 체크가 있고, Esc로 닫힌다
     fireEvent.click(button);
-    const menu = screen.getByTestId('sql-dialect-menu');
+    const menu = screen.getByTestId('dialect-select-menu');
     expect(menu.getAttribute('role')).toBe('menu');
-    expect(screen.getByTestId('sql-dialect-menu-mysql').getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('dialect-select-menu-mysql').getAttribute('aria-checked')).toBe('true');
     fireEvent.keyDown(menu, { key: 'Escape' });
-    expect(screen.queryByTestId('sql-dialect-menu')).toBeNull();
+    expect(screen.queryByTestId('dialect-select-menu')).toBeNull();
     expect(button.getAttribute('aria-expanded')).toBe('false');
     // 키보드로: 아래 방향키로 열고, 아래로 옮겨 Enter
     fireEvent.keyDown(button, { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(screen.getByTestId('sql-dialect-menu-mysql'));
-    fireEvent.keyDown(screen.getByTestId('sql-dialect-menu'), { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(screen.getByTestId('sql-dialect-menu-postgresql'));
+    expect(document.activeElement).toBe(screen.getByTestId('dialect-select-menu-mysql'));
+    fireEvent.keyDown(screen.getByTestId('dialect-select-menu'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(screen.getByTestId('dialect-select-menu-postgresql'));
     fireEvent.click(document.activeElement as HTMLElement);
     expect(screen.getByTestId('pane-sql').dataset.dialect).toBe('postgresql');
     expect(document.activeElement).toBe(button);

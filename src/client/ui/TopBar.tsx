@@ -34,7 +34,6 @@ import { UserAvatars } from '../presence/Presence';
 import { navigate, roomUrl } from '../router';
 import { ui, useUi } from '../state/ui';
 import { track, trackExport } from '../telemetry';
-import { useIssueCount } from './IssuesPanel';
 import { LogoMark } from './LogoMark';
 import { Toaster, toast } from './toast';
 import './TopBar.css';
@@ -784,19 +783,9 @@ export function TopBar({ paneMenu }: { paneMenu?: ReactNode } = {}) {
   const t = useT();
   const room = useRoom();
   const { canUndo, canRedo } = useUndoState();
-  const { errors, warnings } = useIssueCount();
-  const issuesOpen = useUi((s) => s.panels.issues);
   const helpOpen = useUi((s) => s.panels.help);
   const togglePanel = useUi((s) => s.togglePanel);
 
-  const errorCount = t('count.errors', { count: errors });
-  const warningCount = t('count.warnings', { count: warnings });
-  const issueSummary =
-    errors + warnings === 0
-      ? t('issues.summaryOk')
-      : t('issues.summary', {
-          summary: [errors > 0 ? errorCount : '', warnings > 0 ? warningCount : ''].filter(Boolean).join(t('list.separator')),
-        });
 
   return (
     <div className="topbar">
@@ -847,31 +836,6 @@ export function TopBar({ paneMenu }: { paneMenu?: ReactNode } = {}) {
             <span className="topbar-divider topbar-panes-divider" aria-hidden="true" />
           </>
         )}
-        <button
-          type="button"
-          className={`btn btn-ghost topbar-btn${issuesOpen ? ' is-active' : ''}`}
-          data-testid="issues-button"
-          title={issueSummary}
-          aria-pressed={issuesOpen}
-          onClick={() => togglePanel('issues')}
-        >
-          {icons.check}
-          <span className="topbar-label">{t('issues.title')}</span>
-          {errors > 0 && (
-            <span className="topbar-badge topbar-badge-error" data-testid="issues-badge-error" aria-label={errorCount}>
-              {errors > 99 ? '99+' : errors}
-            </span>
-          )}
-          {warnings > 0 && (
-            <span
-              className="topbar-badge topbar-badge-warning"
-              data-testid="issues-badge-warning"
-              aria-label={warningCount}
-            >
-              {warnings > 99 ? '99+' : warnings}
-            </span>
-          )}
-        </button>
         <ExportMenu />
         <AiButton />
         <ShareButton />

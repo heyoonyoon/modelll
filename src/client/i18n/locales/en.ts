@@ -456,7 +456,7 @@ export const en: Dictionary = {
   'home.migrate.step1.title': 'Save your ERD as an image',
   'home.migrate.step1.body': 'Take a screenshot or export a PNG from the original tool. For a hand drawing, just take a photo.',
   'home.migrate.step2.title': 'Attach the image to your AI and paste a prompt',
-  'home.migrate.cli.tab': 'Prompt',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': 'Attach the image to your AI and paste this prompt.',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': 'First add this URL to your AI as a remote MCP server or connector. You only need to do this once.',
@@ -590,7 +590,7 @@ export const en: Dictionary = {
   'relView.ie.pickChild': 'Click the child table that references {parent}',
   'relView.ie.fixTextFirst': 'The relational model has errors. Fix them first.',
   'relView.ie.emptyTitle': 'No tables yet',
-  'relView.ie.emptyBody': 'Add a table or double-click an empty spot. You can also write the relational model.',
+  'relView.ie.emptyBody': 'Add a table, or write the relational model.',
   'relView.ie.addColumn': 'Add column',
   'relView.ie.addColumnLabel': 'Add a column to {table}',
   'relView.ie.deleteTableLabel': 'Delete table {table}',
@@ -601,7 +601,7 @@ export const en: Dictionary = {
   'relView.ie.colKey': 'Key',
   'relView.ie.colName': 'Name',
   'relView.ie.linkKind': 'Relationship kind',
-  'relView.ie.editKeysHint': 'Double-click an empty spot to add a table. Delete removes the selected table or relationship, and Esc turns off the tool.',
+  'relView.ie.editKeysHint': 'Delete removes the selected table or relationship, and Esc turns off the tool.',
   'sqlView.missingTypes': { one: '{count} column without a type', other: '{count} columns without a type' },
   'sqlView.settings.title': 'Column settings',
   'sqlView.settings.column': 'Column',
@@ -611,4 +611,11 @@ export const en: Dictionary = {
   'sqlView.nullLabel': 'Nullability of column {column} in {table}',
   'sqlView.uniqueLabel': 'UNIQUE on column {column} in {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': 'Feedback',
+  'feedback.placeholder': 'Share your thoughts',
+  'feedback.send': 'Send',
+  'feedback.sent': 'Sent',
+  'feedback.rateLimited': 'Please try again in a moment',
+  'feedback.failed': 'Could not send',
 };

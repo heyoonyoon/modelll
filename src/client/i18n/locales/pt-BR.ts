@@ -457,7 +457,7 @@ export const ptBR: Dictionary = {
   'home.migrate.step1.title': 'Salve seu ERD como imagem',
   'home.migrate.step1.body': 'Tire uma captura de tela ou exporte um PNG na ferramenta original. Se for desenhado à mão, basta uma foto.',
   'home.migrate.step2.title': 'Anexe a imagem à IA e cole uma instrução',
-  'home.migrate.cli.tab': 'Instrução',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': 'Anexe a imagem à sua IA e cole esta instrução.',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': 'Primeiro adicione esta URL à sua IA como servidor MCP remoto ou conector. Só precisa fazer isso uma vez.',
@@ -591,7 +591,7 @@ export const ptBR: Dictionary = {
   'relView.ie.pickChild': 'Clique na tabela filha que referencia {parent}',
   'relView.ie.fixTextFirst': 'O modelo relacional tem erros. Corrija-os primeiro.',
   'relView.ie.emptyTitle': 'Ainda não há tabelas',
-  'relView.ie.emptyBody': 'Adicione uma tabela ou clique duas vezes em um espaço vazio. Você também pode escrever o modelo relacional.',
+  'relView.ie.emptyBody': 'Adicione uma tabela ou escreva o modelo relacional.',
   'relView.ie.addColumn': 'Adicionar coluna',
   'relView.ie.addColumnLabel': 'Adicionar uma coluna a {table}',
   'relView.ie.deleteTableLabel': 'Excluir a tabela {table}',
@@ -602,7 +602,7 @@ export const ptBR: Dictionary = {
   'relView.ie.colKey': 'Chave',
   'relView.ie.colName': 'Nome',
   'relView.ie.linkKind': 'Tipo de relacionamento',
-  'relView.ie.editKeysHint': 'Clique duas vezes em um espaço vazio para adicionar uma tabela. Delete exclui a tabela ou o relacionamento selecionado e Esc desativa a ferramenta.',
+  'relView.ie.editKeysHint': 'Delete exclui a tabela ou o relacionamento selecionado e Esc desativa a ferramenta.',
   'sqlView.missingTypes': { one: '{count} coluna sem tipo', other: '{count} colunas sem tipo' },
   'sqlView.settings.title': 'Configurações das colunas',
   'sqlView.settings.column': 'Coluna',
@@ -612,4 +612,11 @@ export const ptBR: Dictionary = {
   'sqlView.nullLabel': 'Nulidade da coluna {column} de {table}',
   'sqlView.uniqueLabel': 'UNIQUE na coluna {column} de {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': 'Sugestões',
+  'feedback.placeholder': 'Deixe sua opinião',
+  'feedback.send': 'Enviar',
+  'feedback.sent': 'Enviado',
+  'feedback.rateLimited': 'Tente novamente em instantes',
+  'feedback.failed': 'Não foi possível enviar',
 };

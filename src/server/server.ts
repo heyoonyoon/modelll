@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { ROOM_ID_PATTERN } from '../shared/types';
 import { createAdminServer, type AdminServer } from './admin';
+import { FeedbackStore, type FeedbackLimits } from './feedback';
+import { createCountryLookup } from './geo';
 import { createApp } from './http';
 import { CLOSE_ROOM_RATE_LIMIT, CLOSE_TOO_MANY_CONNECTIONS, ClientLimits, RequestRateLimiter, clientIp } from './limits';
 import { Persistence, type Logger } from './persistence';
@@ -62,6 +64,10 @@ export interface ErdServerOptions {
   adminPasswordHash?: string;
   /** 관리자 페이지가 받는 Host의 포트. 기본은 관리자 포트(터널의 로컬 포트를 다르게 쓰면 여기에 그 포트) */
   adminPublicPort?: number;
+  /** 의견함(POST /api/feedback, DATA_DIR/feedback). 기본 false */
+  feedback?: boolean | { limits?: Partial<FeedbackLimits>; now?: () => number; maxPerFile?: number };
+  /** 나라 DB(mmdb) 파일. 없으면 npm 패키지의 DB-IP Lite, null이면 나라를 찾지 않는다('??') */
+  countryDb?: string | null;
 }
 
 export interface ErdServer {
@@ -86,6 +92,15 @@ function defaultStaticDir(): string {
 interface ConnMeta {
   anonId: string | null;
   ua: string | undefined;
+  country: string;
+  /** Accept-Language의 첫 언어(예: ko). 실시간 목록에만 쓰고 남기지 않는다 */
+  lang: string | null;
+}
+
+/** Accept-Language 헤더의 첫 언어 코드(소문자 2~3자). 없거나 이상하면 null */
+export function langOf(header: string | undefined): string | null {
+  const m = /^\s*([A-Za-z]{2,3})(?:[-_][A-Za-z0-9]+)*/.exec(header ?? '');
+  return m ? m[1].toLowerCase() : null;
 }
 
 function anonIdOf(url: string): string | null {
@@ -114,6 +129,19 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
   const metrics = opts.stats
     ? new StatsCollector({ dir: path.join(opts.dataDir ?? './data', 'stats'), salt: statsOpts.salt, flushIntervalMs: statsOpts.flushIntervalMs, now: statsOpts.now, log })
     : undefined;
+  const countryOf = createCountryLookup({ file: opts.countryDb, log });
+  const feedbackOpts = typeof opts.feedback === 'object' ? opts.feedback : {};
+  const feedback = opts.feedback
+    ? new FeedbackStore({
+        dir: path.join(opts.dataDir ?? './data', 'feedback'),
+        saltDir: path.join(opts.dataDir ?? './data', 'stats'),
+        salt: statsOpts.salt,
+        limits: feedbackOpts.limits,
+        now: feedbackOpts.now,
+        maxPerFile: feedbackOpts.maxPerFile,
+        log,
+      })
+    : undefined;
   const hub = new SyncHub(persistence, {
     onEdit: metrics ? (roomId) => metrics.edit(roomId) : undefined,
     onRoomCreated: metrics ? (roomId) => metrics.roomCreated(roomId) : undefined,
@@ -137,7 +165,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
   /** 방에 실제로 들어간 연결을 지표에 넣는다(방이 꽉 차서 닫힌 연결은 빼고) */
   function joined(ws: WebSocket, roomId: string, meta: ConnMeta): void {
     if (!metrics || ws.readyState !== WebSocket.OPEN) return;
-    metrics.wsOpen(ws, roomId, meta.anonId, meta.ua);
+    metrics.wsOpen(ws, roomId, meta.anonId, meta.ua, meta.country, meta.lang);
     ws.once('close', (code: number) => metrics.wsClose(ws, code));
   }
 
@@ -191,6 +219,8 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
     },
     takeTelemetryRequest: (ip) => telemetryRate.take(ip),
     metrics,
+    feedback,
+    countryOf,
     publicUrl: opts.publicUrl,
     log,
   });
@@ -203,6 +233,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
             return { connections: sizes.reduce((a, b) => a + b, 0), openRooms: sizes.length };
           },
           passwordHash: opts.adminPasswordHash,
+          feedback,
           log,
         })
       : null;
@@ -223,6 +254,8 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       if (server) throw new Error('already started');
       await persistence.init();
       if (metrics) await metrics.init();
+      // 지표가 솔트를 먼저 만들어 두어야 의견함이 같은 솔트를 읽는다
+      if (feedback) await feedback.init();
 
       const httpServer = http.createServer(app);
       const wsServer = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
@@ -237,7 +270,13 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
         // 디코딩하지 않은 경로를 그대로 검사한다. 올바른 방 id에는 인코딩이 필요한 글자가 없다.
         const roomId = pathname.slice('/ws/'.length);
         // 지표용 익명 ID(?a=). 형식 확인은 지표 쪽에서 한다. User-Agent는 봇인지 보는 데만 쓰고 남기지 않는다
-        const meta: ConnMeta = { anonId: anonIdOf(req.url ?? ''), ua: req.headers['user-agent'] };
+        // 나라는 IP로 찾은 코드만 넘긴다(IP는 지표에 가지 않는다)
+        const meta: ConnMeta = {
+          anonId: anonIdOf(req.url ?? ''),
+          ua: req.headers['user-agent'],
+          country: metrics ? countryOf(clientIp(req)) : '??',
+          lang: langOf(req.headers['accept-language']),
+        };
         wsServer.handleUpgrade(req, socket, head, (ws) => {
           if (!ROOM_ID_PATTERN.test(roomId)) {
             // 핸드셰이크를 받아 준 뒤 닫아야 클라이언트가 닫기 코드를 보고 재접속을 멈춘다
@@ -271,6 +310,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       startedAt = Date.now();
       hub.start();
       metrics?.start();
+      feedback?.start();
       let adminPort: number | undefined;
       if (admin && opts.adminPort !== undefined) {
         try {
@@ -311,6 +351,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       await closed;
       await admin?.close();
       await metrics?.stop();
+      await feedback?.stop();
     },
   };
 }

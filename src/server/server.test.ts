@@ -381,3 +381,13 @@ describe('ERD 서버', () => {
     }
   });
 });
+
+describe('langOf', () => {
+  it('Accept-Language의 첫 언어 코드만 소문자로 돌려준다', async () => {
+    const { langOf } = await import('./server');
+    expect(langOf('ko-KR,ko;q=0.9,en-US;q=0.8')).toBe('ko');
+    expect(langOf('EN')).toBe('en');
+    expect(langOf('*')).toBeNull();
+    expect(langOf(undefined)).toBeNull();
+  });
+});

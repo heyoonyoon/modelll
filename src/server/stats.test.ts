@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { StatsCollector, dayLabel, dayNumber, isAbnormalClose, isBot, normalizeDomain } from './stats';
+import { StatsCollector, closeKind, dayLabel, dayNumber, isAbnormalClose, isBot, normalizeDomain } from './stats';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const id = (n: number) => n.toString(16).padStart(32, '0');
@@ -149,6 +149,29 @@ describe('서비스 지표 모으기', () => {
     await c.stop();
   });
 
+  it('실시간 목록: 나라, 기기, 언어, 접속 시간, 방 해시 앞 6자, 신규 여부. 같은 브라우저의 같은 방 탭은 한 줄', async () => {
+    const s = make();
+    await s.init();
+    const a1 = {};
+    const a2 = {};
+    const b = {};
+    s.wsOpen(a1, 'room1', id(1), 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148', 'KR', 'ko');
+    clock += 60_000;
+    s.wsOpen(a2, 'room1', id(1), 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148', 'KR', 'ko');
+    s.wsOpen(b, 'room2', id(2), UA, 'US', 'en');
+    const list = s.liveList();
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({ country: 'KR', device: 'm', lang: 'ko', isNew: true, tabs: 2 });
+    expect(list[0].room).toMatch(/^[A-Za-z0-9_-]{6}$/);
+    expect(list[0].room).not.toContain('room1');
+    expect(list[1]).toMatchObject({ country: 'US', device: 'd', lang: 'en', tabs: 1 });
+    expect(list[0].since).toBeLessThan(list[1].since);
+    s.wsClose(a1, 1000);
+    s.wsClose(a2, 1000);
+    expect(s.liveList()).toHaveLength(1);
+    await s.stop();
+  });
+
   it('웹소켓: 고유 접속자, 최대 동시 접속, 협업 방, 체류 시간, 비정상 종료', async () => {
     const s = make();
     await s.init();
@@ -166,13 +189,20 @@ describe('서비스 지표 모으기', () => {
     s.wsClose(w1, 1001);
     s.wsClose(w2, 1006);
     s.wsClose(w3, 4429);
+    const w4 = {};
+    s.wsOpen(w4, 'room2', id(3), UA);
+    s.wsClose(w4, 1011);
     const t = s.today();
     expect(t.peak).toBe(2);
     expect(t.u['r:collab']).toBe(1);
     expect(t.u['r:active']).toBe(1);
     expect(t.c.edits).toBe(2);
-    expect(t.c.wsAbnormal).toBe(1);
-    expect(t.sess).toEqual({ n: 3, avg: 90, med: 90 });
+    expect(t.c.wsDrop).toBe(1);
+    expect(t.c.wsServer).toBe(1);
+    expect(closeKind(1006)).toBe('drop');
+    expect(closeKind(1011)).toBe('server');
+    expect(closeKind(1001)).toBeNull();
+    expect(t.sess).toMatchObject({ n: 4 });
     expect(s.liveCounts()).toMatchObject({ users: 0, rooms: 0 });
     expect(isAbnormalClose(1000)).toBe(false);
     expect(isAbnormalClose(1011)).toBe(true);

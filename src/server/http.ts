@@ -23,6 +23,9 @@
  *
  * 지표(src/server/stats.ts)
  *   POST /api/t                   브라우저가 sendBeacon으로 보내는 작은 이벤트. 허용된 이름만 세고 나머지는 버린다. 언제나 204
+ *   POST /api/feedback            의견 보내기(src/server/feedback.ts). 본문 JSON { message, page?, lang? }. 인증 없음
+ *                                 201 { ok: true } / 400 { error: 'invalid' } / 403 { error: 'forbidden' }(다른 사이트)
+ *                                 429 { error: 'rate_limited', retryAfter }(Retry-After 헤더도). IP마다 1초 1건, 10분 100건
  *   관리자 페이지와 지표 조회는 이 포트에 없다(따로 연 관리자 포트, src/server/admin.ts). /admin, /stats는 여기서 404다
  */
 import path from 'node:path';
@@ -37,6 +40,8 @@ import { applyIeDocument, planIeDocument, readIeDocument } from '../shared/relat
 import { problemText } from '../cli/format';
 import type { RelProblem } from '../shared/relational/userSchema';
 import { getEdges, getNodes, getTitle } from '../shared/ydoc';
+import { FEEDBACK_PATH, MAX_FEEDBACK_BYTES, type FeedbackStore, type SubmitResult } from './feedback';
+import type { CountryOf } from './geo';
 import { clientIp } from './limits';
 import { mountMcp, type McpDeps } from './mcp';
 import { MAX_MODEL_BYTES, MAX_NODES, modelNodeCount, writeModel, type WithDoc } from './model';
@@ -64,6 +69,10 @@ export interface HttpDeps extends McpDeps {
   metrics?: StatsCollector;
   /** 지표 이벤트 하나를 센다(요청 제한). 받아도 되면 0 */
   takeTelemetryRequest?(ip: string): number;
+  /** 의견함. 없으면 POST /api/feedback 은 404 */
+  feedback?: FeedbackStore;
+  /** IP로 나라 코드를 찾는다(geo.ts). 없으면 '??' */
+  countryOf?: CountryOf;
 }
 
 function isUnder(pathname: string, prefix: string): boolean {
@@ -129,6 +138,15 @@ export function telemetryOriginAllowed(req: Request, publicUrl?: string): boolea
   return false;
 }
 
+/**
+ * 의견을 보낸 페이지가 이 앱인지. 지표와 같은 Origin 규칙에 더해, 브라우저가 알려 주는 Sec-Fetch-Site가 cross-site면 거절한다.
+ * Origin이 없는 요청(브라우저가 아닌 프로그램)은 받되 요청 제한으로 막는다.
+ */
+export function feedbackOriginAllowed(req: Request, publicUrl?: string): boolean {
+  if (req.headers['sec-fetch-site'] === 'cross-site') return false;
+  return telemetryOriginAllowed(req, publicUrl);
+}
+
 export function createApp(deps: HttpDeps): Express {
   const staticDir = path.resolve(deps.staticDir);
   const assetsDir = path.join(staticDir, 'assets') + path.sep;
@@ -147,6 +165,7 @@ export function createApp(deps: HttpDeps): Express {
   });
 
   const metrics = deps.metrics;
+  const countryOf = deps.countryOf ?? (() => '??');
   if (metrics) {
     // 서버 오류 수. 응답이 끝날 때 상태 코드만 본다
     app.use((_req, res, next) => {
@@ -419,7 +438,7 @@ export function createApp(deps: HttpDeps): Express {
   }, readTelemetry, (req, res) => {
     const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     try {
-      metrics?.clientEvent(JSON.parse(raw.toString('utf8')), req.headers['user-agent']);
+      metrics?.clientEvent(JSON.parse(raw.toString('utf8')), req.headers['user-agent'], countryOf(clientIp(req)));
     } catch {
       // 읽을 수 없는 본문은 버린다
     }
@@ -428,6 +447,47 @@ export function createApp(deps: HttpDeps): Express {
   app.use(TELEMETRY_PATH, (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (res.headersSent) return next(err);
     res.status((err as { type?: string } | null)?.type === 'entity.too.large' ? 413 : 400).end();
+  });
+
+  // ───────────────────────── 의견 보내기 ─────────────────────────
+
+  const feedback = deps.feedback;
+  const answer = (res: express.Response, result: SubmitResult) => {
+    if (result.status === 429) res.setHeader('Retry-After', String(result.body.retryAfter));
+    res.status(result.status).json(result.body);
+  };
+  // 형식과 상관없이 바이트로 받아 JSON으로 읽는다. 8 KB를 넘으면 읽다가 멈춘다
+  const readFeedback = express.raw({ type: () => true, limit: MAX_FEEDBACK_BYTES });
+  app.post(FEEDBACK_PATH, (req, res, next) => {
+    if (!feedback) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    const ip = clientIp(req);
+    const who = { ipHash: feedback.hashIp(ip), country: countryOf(ip) };
+    res.locals.feedbackWho = who;
+    if (!feedbackOriginAllowed(req, deps.publicUrl)) return answer(res, feedback.rejectCrossOrigin(who.ipHash, who.country));
+    // 제한에 걸리면 본문을 읽지 않는다
+    const limited = feedback.checkRate(who.ipHash, who.country);
+    if (limited) return answer(res, limited);
+    next();
+  }, readFeedback, (req, res) => {
+    const { ipHash, country } = res.locals.feedbackWho as { ipHash: string; country: string };
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    let body: unknown;
+    try {
+      body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw));
+    } catch {
+      return answer(res, feedback!.invalid(ipHash, country));
+    }
+    answer(res, feedback!.submit(ipHash, country, body, req.headers['user-agent']));
+  });
+  app.use(FEEDBACK_PATH, (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent || !feedback) return next(err);
+    const who = res.locals.feedbackWho as { ipHash: string; country: string } | undefined;
+    // 너무 큰 본문, 끊긴 본문 모두 형식 오류로 답한다
+    if (who) feedback.invalid(who.ipHash, who.country);
+    res.status(400).json({ error: 'invalid' });
   });
 
   app.use('/api', (_req, res) => {

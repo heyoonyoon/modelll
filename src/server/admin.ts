@@ -11,12 +11,14 @@
  * - 응답 헤더: CSP(스크립트와 스타일은 응답마다 새 nonce), frame-ancestors 'none', nosniff, Referrer-Policy same-origin, no-store.
  * - 화면에 나오는 값은 모두 이스케이프한다(리퍼러 도메인, UTM처럼 밖에서 온 값이 섞인다).
  *
- * 경로: GET / (화면), GET /login, POST /login, POST /logout, GET /api/summary, GET /api/daily?days=N, GET /api/live
+ * 경로: GET / (화면), GET /login, POST /login, POST /logout, GET /api/summary, GET /api/daily?days=N, GET /api/live,
+ *       GET /api/feedback?offset=N&limit=N (의견함, 새것부터), GET /api/anomalies (이상 발송)
  */
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { adminPageHtml, loginPageHtml } from './adminPage';
+import type { FeedbackStore } from './feedback';
 import type { StatsCollector } from './stats';
 
 export const SESSION_COOKIE = 'modelll_admin';
@@ -32,6 +34,8 @@ export interface AdminDeps {
   /** 지금 연결 수와 열린 방 수(SyncHub) */
   live(): { connections: number; openRooms: number };
   passwordHash?: string;
+  /** 의견함. 없으면 의견과 이상 발송 목록이 비어 있다 */
+  feedback?: FeedbackStore;
   log?: (message: string) => void;
   now?: () => number;
   /** 실패한 로그인에 답하기 전에 기다리는 시간. 테스트에서 줄인다 */
@@ -211,9 +215,13 @@ export function createAdminServer(deps: AdminDeps): AdminServer {
 
   function summary() {
     const m = deps.metrics;
+    const recent = m.daily(2);
     return {
+      yesterday: recent.length > 1 ? recent[0] : null,
+      countries: { today: m.countries(1), d7: m.countries(7), d30: m.countries(30) },
+      feedbackTotal: deps.feedback ? deps.feedback.list(0, 0).total : 0,
       now: new Date(now()).toISOString(),
-      live: { ...deps.live(), ...m.liveCounts() },
+      live: { ...deps.live(), ...m.liveCounts(), list: m.liveList() },
       today: m.today(),
       active: m.activeUsers(),
       totals: m.totalsNow(),
@@ -324,7 +332,13 @@ export function createAdminServer(deps: AdminDeps): AdminServer {
         return;
       }
       if (path === '/api/summary') return json(res, 200, summary());
-      if (path === '/api/live') return json(res, 200, { now: new Date(now()).toISOString(), ...deps.live(), ...deps.metrics.liveCounts() });
+      if (path === '/api/live') return json(res, 200, { now: new Date(now()).toISOString(), ...deps.live(), ...deps.metrics.liveCounts(), list: deps.metrics.liveList() });
+      if (path === '/api/feedback') {
+        const offset = Math.max(0, Math.min(100_000, Number(url.searchParams.get('offset')) || 0));
+        const limit = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 200));
+        return json(res, 200, deps.feedback ? deps.feedback.list(offset, limit) : { total: 0, kept: 0, items: [] });
+      }
+      if (path === '/api/anomalies') return json(res, 200, { rows: deps.feedback ? deps.feedback.anomalies(200) : [] });
       if (path === '/api/daily') {
         const raw = url.searchParams.get('days');
         const n = raw === null || raw === 'all' ? 0 : Number(raw);

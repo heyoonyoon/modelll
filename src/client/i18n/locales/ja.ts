@@ -456,7 +456,7 @@ export const ja: Dictionary = {
   'home.migrate.step1.title': '既存の ERD を画像で保存します',
   'home.migrate.step1.body': '画面をキャプチャするか、元のツールから PNG で書き出します。手描きの ERD は写真を撮れば十分です。',
   'home.migrate.step2.title': 'AI に画像を添付して指示文を貼り付けます',
-  'home.migrate.cli.tab': '指示文',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': '使っている AI に画像を添付し、この指示文を貼り付けます。',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': 'まずこの URL を AI のリモート MCP サーバーまたはコネクタとして追加します。最初の一度だけで済みます。',
@@ -590,7 +590,7 @@ export const ja: Dictionary = {
   'relView.ie.pickChild': '{parent} を参照する子テーブルをクリックしてください',
   'relView.ie.fixTextFirst': '関係モデルにエラーがあります。先にエラーを直してください。',
   'relView.ie.emptyTitle': 'まだテーブルがありません',
-  'relView.ie.emptyBody': 'テーブルを追加するか、空いている所をダブルクリックしてください。関係モデルを書いても構いません。',
+  'relView.ie.emptyBody': 'テーブルを追加するか、関係モデルを書いてください。',
   'relView.ie.addColumn': '列を追加',
   'relView.ie.addColumnLabel': '{table} に列を追加',
   'relView.ie.deleteTableLabel': 'テーブル {table} を削除',
@@ -601,7 +601,7 @@ export const ja: Dictionary = {
   'relView.ie.colKey': 'キー',
   'relView.ie.colName': '名前',
   'relView.ie.linkKind': 'リレーションの種類',
-  'relView.ie.editKeysHint': '空いている所をダブルクリックするとテーブルを追加します。Delete キーで選んだテーブルや関係を削除し、Esc キーでツールを終了します。',
+  'relView.ie.editKeysHint': 'Delete キーで選んだテーブルや関係を削除し、Esc キーでツールを終了します。',
   'sqlView.missingTypes': '型が未設定の列 {count} 件',
   'sqlView.settings.title': '列の設定',
   'sqlView.settings.column': '列',
@@ -611,4 +611,11 @@ export const ja: Dictionary = {
   'sqlView.nullLabel': '{table} テーブルの {column} 列の NULL 可否',
   'sqlView.uniqueLabel': '{table} テーブルの {column} 列の UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': 'ご意見',
+  'feedback.placeholder': 'ご意見をお寄せください',
+  'feedback.send': '送信',
+  'feedback.sent': '送信しました',
+  'feedback.rateLimited': 'しばらくしてからもう一度お送りください',
+  'feedback.failed': '送信できませんでした',
 };

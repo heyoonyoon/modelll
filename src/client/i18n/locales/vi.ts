@@ -456,7 +456,7 @@ export const vi: Dictionary = {
   'home.migrate.step1.title': 'Lưu ERD thành ảnh',
   'home.migrate.step1.body': 'Chụp màn hình hoặc xuất PNG từ công cụ gốc. ERD vẽ tay thì chỉ cần chụp ảnh.',
   'home.migrate.step2.title': 'Đính kèm ảnh vào AI và dán câu lệnh',
-  'home.migrate.cli.tab': 'Câu lệnh',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': 'Đính kèm ảnh cho AI của bạn và dán câu lệnh này.',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': 'Trước tiên hãy thêm địa chỉ này vào AI làm máy chủ MCP từ xa hoặc trình kết nối. Chỉ cần làm một lần.',
@@ -590,7 +590,7 @@ export const vi: Dictionary = {
   'relView.ie.pickChild': 'Hãy bấm vào bảng con tham chiếu {parent}',
   'relView.ie.fixTextFirst': 'Mô hình quan hệ có lỗi. Hãy sửa lỗi trước.',
   'relView.ie.emptyTitle': 'Chưa có bảng nào',
-  'relView.ie.emptyBody': 'Hãy thêm bảng hoặc bấm đúp vào chỗ trống. Bạn cũng có thể viết mô hình quan hệ.',
+  'relView.ie.emptyBody': 'Hãy thêm bảng hoặc viết mô hình quan hệ.',
   'relView.ie.addColumn': 'Thêm cột',
   'relView.ie.addColumnLabel': 'Thêm cột vào {table}',
   'relView.ie.deleteTableLabel': 'Xóa bảng {table}',
@@ -601,7 +601,7 @@ export const vi: Dictionary = {
   'relView.ie.colKey': 'Khóa',
   'relView.ie.colName': 'Tên',
   'relView.ie.linkKind': 'Loại quan hệ',
-  'relView.ie.editKeysHint': 'Bấm đúp vào chỗ trống để thêm bảng. Delete xóa bảng hoặc quan hệ đang chọn, Esc tắt công cụ.',
+  'relView.ie.editKeysHint': 'Delete xóa bảng hoặc quan hệ đang chọn, Esc tắt công cụ.',
   'sqlView.missingTypes': '{count} cột chưa có kiểu',
   'sqlView.settings.title': 'Thiết lập cột',
   'sqlView.settings.column': 'Cột',
@@ -611,4 +611,11 @@ export const vi: Dictionary = {
   'sqlView.nullLabel': 'Cho phép NULL của cột {column} trong {table}',
   'sqlView.uniqueLabel': 'UNIQUE của cột {column} trong {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': 'Góp ý',
+  'feedback.placeholder': 'Hãy để lại ý kiến của bạn',
+  'feedback.send': 'Gửi',
+  'feedback.sent': 'Đã gửi',
+  'feedback.rateLimited': 'Vui lòng thử lại sau giây lát',
+  'feedback.failed': 'Không gửi được',
 };

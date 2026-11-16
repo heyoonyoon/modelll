@@ -456,7 +456,7 @@ export const zhTW: Dictionary = {
   'home.migrate.step1.title': '把現有 ERD 存成圖片',
   'home.migrate.step1.body': '擷取畫面，或從原工具匯出 PNG。手繪的 ERD 拍張照片即可。',
   'home.migrate.step2.title': '把圖片附加給 AI 並貼上指令',
-  'home.migrate.cli.tab': '指令',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': '把圖片附給你使用的 AI，並貼上這條指令。',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': '先把這個網址作為遠端 MCP 伺服器或連接器加到 AI 中。只需加入一次。',
@@ -590,7 +590,7 @@ export const zhTW: Dictionary = {
   'relView.ie.pickChild': '請點選參照 {parent} 的子資料表',
   'relView.ie.fixTextFirst': '關聯模型有錯誤。請先修正錯誤。',
   'relView.ie.emptyTitle': '還沒有資料表',
-  'relView.ie.emptyBody': '新增資料表，或在空白處按兩下。也可以直接寫關聯模型。',
+  'relView.ie.emptyBody': '新增資料表，或直接寫關聯模型。',
   'relView.ie.addColumn': '新增欄位',
   'relView.ie.addColumnLabel': '在 {table} 新增欄位',
   'relView.ie.deleteTableLabel': '刪除資料表 {table}',
@@ -601,7 +601,7 @@ export const zhTW: Dictionary = {
   'relView.ie.colKey': '鍵',
   'relView.ie.colName': '名稱',
   'relView.ie.linkKind': '關係種類',
-  'relView.ie.editKeysHint': '在空白處按兩下可新增資料表。按 Delete 刪除選取的資料表或關係，按 Esc 關閉工具。',
+  'relView.ie.editKeysHint': '按 Delete 刪除選取的資料表或關係，按 Esc 關閉工具。',
   'sqlView.missingTypes': '{count} 個欄位未設定型別',
   'sqlView.settings.title': '欄位設定',
   'sqlView.settings.column': '欄位',
@@ -611,4 +611,11 @@ export const zhTW: Dictionary = {
   'sqlView.nullLabel': '{table} 表格 {column} 欄位是否允許 NULL',
   'sqlView.uniqueLabel': '{table} 表格 {column} 欄位的 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': '意見回饋',
+  'feedback.placeholder': '請留下您的意見',
+  'feedback.send': '傳送',
+  'feedback.sent': '已傳送',
+  'feedback.rateLimited': '請稍後再試',
+  'feedback.failed': '無法傳送',
 };

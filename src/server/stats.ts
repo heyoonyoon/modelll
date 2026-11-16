@@ -13,7 +13,9 @@
  *   today.json   오늘 진행 중인 집계. 1분마다 덮어써서 다시 켜도 이어 센다(고유 집계를 위해 해시 집합을 담는다)
  *   users.json   사용자(해시) → [첫 방문일, 마지막 방문일, 방문한 날 수, 표시], 그리고 누적 카운터
  *   rooms.json   방(해시) → [처음 본 날, 마지막으로 열린 날, 표시]. 120일 동안 안 열린 방은 지운다
- *   salt         STATS_SALT 환경변수가 없을 때 만들어 두는 비밀 솔트
+ *   salt         STATS_SALT 환경변수가 없을 때 만들어 두는 비밀 솔트(의견함 src/server/feedback.ts도 같은 솔트로 IP를 해시한다)
+ *
+ * 나라: 브라우저 이벤트와 방 연결에서 IP로 찾은 나라 코드(src/server/geo.ts)만 받아 'cc:KR' 집합에 사용자 해시를 넣는다. IP는 받지 않는다.
  */
 import { createHmac, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -58,6 +60,15 @@ export function isAbnormalClose(code: number): boolean {
   return true;
 }
 
+/**
+ * 비정상 종료를 원인 쪽으로 나눈다. 1006은 닫기 인사 없이 연결이 사라진 것(절전, 앱 전환, 네트워크 변경, ping 응답 없음)이라 'drop',
+ * 나머지(1011 서버 오류, 1002 프로토콜 오류, 1009 너무 큰 메시지 등)는 서버나 프로토콜 쪽 원인이라 'server'
+ */
+export function closeKind(code: number): 'drop' | 'server' | null {
+  if (!isAbnormalClose(code)) return null;
+  return code === 1006 ? 'drop' : 'server';
+}
+
 /** 들어온 곳의 도메인을 다듬는다. 도메인 꼴이 아니면 null */
 export function normalizeDomain(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -84,6 +95,9 @@ const U_APP = 1;
 const U_D1 = 2;
 const U_D7 = 4;
 const U_D30 = 8;
+/** 3일, 14일 안에 다시 왔다. users.json의 flagsSince.d3 날부터 센다(그 전 코호트는 모른다) */
+const U_D3 = 16;
+const U_D14 = 32;
 // 방 표시
 const R_CREATED = 1;
 const R_NEXT_DAY = 2;
@@ -150,7 +164,27 @@ interface LiveConn {
   userKey: string;
   roomId: string;
   start: number;
+  /** 실시간 목록용(메모리에만 있고 파일에 남기지 않는다) */
+  country: string;
+  device: 'm' | 'd';
+  lang: string | null;
+  isNew: boolean;
 }
+
+/** 실시간 목록의 한 줄: 같은 브라우저가 같은 방에 연 탭은 한 줄로 묶는다 */
+export interface LiveRow {
+  country: string;
+  device: 'm' | 'd';
+  lang: string | null;
+  /** 가장 먼저 연결한 시각(ms) */
+  since: number;
+  /** 방 해시 앞 6자 */
+  room: string;
+  isNew: boolean;
+  tabs: number;
+}
+
+const MOBILE_UA = /Mobi|Android|iPhone|iPad|iPod/i;
 
 function median(values: number[]): number {
   if (values.length === 0) return 0;
@@ -179,6 +213,8 @@ export class StatsCollector {
   private users = new Map<string, UserEntry>();
   private rooms = new Map<string, RoomEntry>();
   private totals: Totals = { ...ZERO_TOTALS };
+  /** D3, D14 표시를 세기 시작한 날(일련번호) */
+  private d3Since: number | null = null;
 
   private readonly live = new Map<object, LiveConn>();
   private readonly userConns = new Map<string, number>();
@@ -209,7 +245,7 @@ export class StatsCollector {
   /** 폴더를 만들고 저장된 집계를 읽는다. 저장된 '오늘'이 지난 날이면 확정해 daily.jsonl로 옮긴다 */
   async init(): Promise<void> {
     await fs.mkdir(this.dir, { recursive: true });
-    if (!this.salt) this.salt = await this.loadSalt();
+    if (!this.salt) this.salt = await loadOrCreateSalt(this.dir, this.log);
 
     const daily = await this.readText('daily.jsonl');
     if (daily) {
@@ -231,6 +267,12 @@ export class StatsCollector {
         for (const [h, e] of Object.entries(users.users)) if (Array.isArray(e) && e.length === 4) this.users.set(h, e as UserEntry);
       }
       if (isRecord(users.totals)) this.totals = { ...ZERO_TOTALS, ...(users.totals as Partial<Totals>) };
+      if (isRecord(users.flagsSince) && typeof users.flagsSince.d3 === 'number') this.d3Since = users.flagsSince.d3;
+    }
+    if (this.d3Since === null) {
+      // 이 판부터 D3, D14를 센다. 처음 켠 서버면 모든 코호트가 대상이다
+      this.d3Since = this.users.size === 0 ? 0 : dayNumber(this.now());
+      this.usersDirty = true;
     }
     const rooms = await this.readJson('rooms.json');
     if (isRecord(rooms) && isRecord(rooms.rooms)) {
@@ -276,13 +318,14 @@ export class StatsCollector {
   // ───────────────────────── 기록: 웹소켓 ─────────────────────────
 
   /** 방에 연결이 붙었다. key는 연결마다 다른 객체(웹소켓) */
-  wsOpen(key: object, roomId: string, anonId: string | null, ua: string | undefined): void {
+  wsOpen(key: object, roomId: string, anonId: string | null, ua: string | undefined, country?: string, lang?: string | null): void {
     if (isBot(ua) || this.live.has(key)) return;
     const now = this.now();
     this.rollover(now);
     const user = anonId && ANON_ID_PATTERN.test(anonId) ? this.hashUser(anonId) : null;
     const userKey = user ?? `#${++this.anonSeq}`;
-    this.live.set(key, { userKey, roomId, start: now });
+    const live: LiveConn = { userKey, roomId, start: now, country: country ?? '??', device: MOBILE_UA.test(ua ?? '') ? 'm' : 'd', lang: lang ?? null, isNew: false };
+    this.live.set(key, live);
     this.userConns.set(userKey, (this.userConns.get(userKey) ?? 0) + 1);
     let inRoom = this.roomUsers.get(roomId);
     if (!inRoom) this.roomUsers.set(roomId, (inRoom = new Map()));
@@ -291,7 +334,10 @@ export class StatsCollector {
     this.count('conns');
     if (user) {
       this.touchUser(user, now, true);
+      // 오늘 처음 온 사람이면 신규(첫 방문일이 오늘)
+      live.isNew = this.users.get(user)?.[0] === dayNumber(now);
       this.addSet('app', user);
+      this.addCountry(country, user);
     }
     const room = this.hashRoom(roomId);
     this.touchRoom(room, now);
@@ -322,7 +368,9 @@ export class StatsCollector {
     s.durN += 1;
     if (s.durSample.length < MAX_DURATION_SAMPLES) s.durSample.push(Math.round(sec));
     else s.durSample[Math.floor(Math.random() * MAX_DURATION_SAMPLES)] = Math.round(sec);
-    if (isAbnormalClose(code)) this.count('wsAbnormal');
+    const kind = closeKind(code);
+    if (kind === 'drop') this.count('wsDrop');
+    else if (kind === 'server') this.count('wsServer');
   }
 
   /** 접속자가 방 문서를 고쳤다(Yjs 업데이트 하나) */
@@ -396,7 +444,7 @@ export class StatsCollector {
   // ───────────────────────── 기록: 브라우저 이벤트 ─────────────────────────
 
   /** POST /api/t 로 온 이벤트 하나. 모르는 이벤트나 형식이 틀린 값은 버린다. 받아들였으면 true */
-  clientEvent(body: unknown, ua: string | undefined): boolean {
+  clientEvent(body: unknown, ua: string | undefined, country?: string): boolean {
     if (isBot(ua) || !isRecord(body)) return false;
     const { a, e } = body;
     if (typeof a !== 'string' || !ANON_ID_PATTERN.test(a)) return false;
@@ -409,6 +457,7 @@ export class StatsCollector {
     const inRoom = event !== 'home_view' && event !== 'create_click' && event !== 'migrate_open';
     this.touchUser(user, now, inRoom);
     if (inRoom) this.addSet('app', user);
+    this.addCountry(country, user);
 
     if (body.land === 1) this.landing(event, body, user);
 
@@ -507,6 +556,22 @@ export class StatsCollector {
     return { users: this.userConns.size, trackedConnections: this.live.size, rooms: this.roomUsers.size, collabRooms: collab };
   }
 
+  /** 지금 연결된 브라우저 목록(같은 브라우저와 같은 방의 탭은 한 줄). 오래 연결된 순 */
+  liveList(): LiveRow[] {
+    const rows = new Map<string, LiveRow>();
+    for (const c of this.live.values()) {
+      const k = `${c.userKey}|${c.roomId}`;
+      const row = rows.get(k);
+      if (row) {
+        row.tabs += 1;
+        row.since = Math.min(row.since, c.start);
+        continue;
+      }
+      rows.set(k, { country: c.country, device: c.device, lang: c.lang, since: c.start, room: this.hashRoom(c.roomId).slice(0, 6), isNew: c.isNew, tabs: 1 });
+    }
+    return [...rows.values()].sort((a, b) => a.since - b.since);
+  }
+
   /** 오늘(진행 중) 집계 */
   today(): DailyRow {
     this.rollover(this.now());
@@ -535,27 +600,48 @@ export class StatsCollector {
     return { ...this.totals, visitors: this.users.size, appUsers: app };
   }
 
-  /** 첫 방문일 코호트별 재방문(첫 방문 뒤 1, 7, 30일 안에 다시 온 사람). ready는 그 기간이 다 지났는지 */
-  retention(days = 30): Array<{ day: string; n: number; d1: number; d7: number; d30: number; ready: [boolean, boolean, boolean] }> {
+  /**
+   * 첫 방문일 코호트별 재방문(첫 방문 뒤 1, 3, 7, 14, 30일 안에 다시 온 사람).
+   * ready는 [D1, D7, D30] 기간이 다 지났는지, readyMore는 [D3, D14]. tracked가 false면 D3, D14를 세기 전 코호트다
+   */
+  retention(days = 30): RetentionRow[] {
     this.rollover(this.now());
     const today = this.state.day;
     const from = today - days + 1;
-    const cohorts = new Map<number, { n: number; d1: number; d7: number; d30: number }>();
+    const zero = () => ({ n: 0, d1: 0, d3: 0, d7: 0, d14: 0, d30: 0 });
+    const cohorts = new Map<number, ReturnType<typeof zero>>();
     for (const [f, , , flags] of this.users.values()) {
       if (f < from) continue;
       let c = cohorts.get(f);
-      if (!c) cohorts.set(f, (c = { n: 0, d1: 0, d7: 0, d30: 0 }));
+      if (!c) cohorts.set(f, (c = zero()));
       c.n += 1;
       if (flags & U_D1) c.d1 += 1;
+      if (flags & U_D3) c.d3 += 1;
       if (flags & U_D7) c.d7 += 1;
+      if (flags & U_D14) c.d14 += 1;
       if (flags & U_D30) c.d30 += 1;
     }
-    const out = [];
+    const out: RetentionRow[] = [];
     for (let d = today; d >= from; d--) {
-      const c = cohorts.get(d) ?? { n: 0, d1: 0, d7: 0, d30: 0 };
-      out.push({ day: dayLabel(d), ...c, ready: [today > d + 1, today > d + 7, today > d + 30] as [boolean, boolean, boolean] });
+      const c = cohorts.get(d) ?? zero();
+      out.push({
+        day: dayLabel(d),
+        ...c,
+        ready: [today > d + 1, today > d + 7, today > d + 30],
+        readyMore: [today > d + 3, today > d + 14],
+        tracked: d >= (this.d3Since ?? 0) - 1,
+      });
     }
     return out;
+  }
+
+  /** 최근 days일(오늘 포함) 동안 나라별 방문자. 날마다 센 고유 브라우저의 합이다. 많은 순 */
+  countries(days: number): Array<[string, number]> {
+    const acc = new Map<string, number>();
+    for (const row of this.daily(days)) {
+      for (const [k, n] of Object.entries(row.u)) if (k.startsWith('cc:')) acc.set(k.slice(3), (acc.get(k.slice(3)) ?? 0) + n);
+    }
+    return Array.from(acc).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
   }
 
   /** 새로 만든 방 가운데 다음 날 다시 열린 방(만든 날별) */
@@ -641,6 +727,11 @@ export class StatsCollector {
     this.usersDirty = true;
   }
 
+  /** 나라 코드는 geo.ts가 두 글자 대문자나 '??'로만 준다. 다른 값은 버린다(종류가 250개 남짓이라 따로 묶지 않는다) */
+  private addCountry(country: string | undefined, user: string): void {
+    if (country && /^([A-Z]{2}|\?\?)$/.test(country)) this.addSet(`cc:${country}`, user);
+  }
+
   private addSet(key: string, value: string): void {
     let set = this.state.sets.get(key);
     if (!set) this.state.sets.set(key, (set = new Set()));
@@ -668,7 +759,9 @@ export class StatsCollector {
       const since = today - e[0];
       if (since >= 1) {
         if (since <= 1) e[3] |= U_D1;
+        if (since <= 3) e[3] |= U_D3;
         if (since <= 7) e[3] |= U_D7;
+        if (since <= 14) e[3] |= U_D14;
         if (since <= 30) e[3] |= U_D30;
       }
       e[1] = today;
@@ -747,7 +840,7 @@ export class StatsCollector {
         );
         if (this.usersDirty) {
           this.usersDirty = false;
-          await this.writeAtomic('users.json', JSON.stringify({ v: 1, totals: this.totals, users: Object.fromEntries(this.users) }));
+          await this.writeAtomic('users.json', JSON.stringify({ v: 1, totals: this.totals, flagsSince: { d3: this.d3Since }, users: Object.fromEntries(this.users) }));
         }
         if (this.roomsDirty) {
           this.roomsDirty = false;
@@ -795,20 +888,38 @@ export class StatsCollector {
       return null;
     }
   }
+}
 
-  private async loadSalt(): Promise<string> {
-    const file = path.join(this.dir, 'salt');
-    try {
-      const salt = (await fs.readFile(file, 'utf8')).trim();
-      if (salt.length >= 32) return salt;
-    } catch {
-      // 아래에서 만든다
-    }
-    const salt = randomBytes(32).toString('hex');
-    await fs.writeFile(file, `${salt}\n`, { mode: 0o600 });
-    this.log('stats: created a new hashing salt (set STATS_SALT to manage it yourself)');
-    return salt;
+export interface RetentionRow {
+  day: string;
+  n: number;
+  d1: number;
+  d3: number;
+  d7: number;
+  d14: number;
+  d30: number;
+  /** D1, D7, D30 기간이 다 지났는지 */
+  ready: [boolean, boolean, boolean];
+  /** D3, D14 기간이 다 지났는지 */
+  readyMore: [boolean, boolean];
+  /** D3, D14를 세기 시작한 뒤의 코호트인지 */
+  tracked: boolean;
+}
+
+/** dir/salt 를 읽고, 없으면 만든다(지표와 의견함이 함께 쓴다) */
+export async function loadOrCreateSalt(dir: string, log: (message: string) => void = () => {}): Promise<string> {
+  const file = path.join(dir, 'salt');
+  try {
+    const salt = (await fs.readFile(file, 'utf8')).trim();
+    if (salt.length >= 32) return salt;
+  } catch {
+    // 아래에서 만든다
   }
+  await fs.mkdir(dir, { recursive: true });
+  const salt = randomBytes(32).toString('hex');
+  await fs.writeFile(file, `${salt}\n`, { mode: 0o600 });
+  log('stats: created a new hashing salt (set STATS_SALT to manage it yourself)');
+  return salt;
 }
 
 function emptyRow(day: string): DailyRow {

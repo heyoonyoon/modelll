@@ -456,7 +456,7 @@ export const zhCN: Dictionary = {
   'home.migrate.step1.title': '把现有 ERD 保存为图片',
   'home.migrate.step1.body': '截图，或从原工具导出 PNG。手绘的 ERD 拍张照片即可。',
   'home.migrate.step2.title': '把图片附加给 AI 并粘贴指令',
-  'home.migrate.cli.tab': '指令',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': '把图片附给你使用的 AI，并粘贴这条指令。',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': '先把这个地址作为远程 MCP 服务器或连接器添加到 AI 中。只需添加一次。',
@@ -590,7 +590,7 @@ export const zhCN: Dictionary = {
   'relView.ie.pickChild': '请点击引用 {parent} 的子表',
   'relView.ie.fixTextFirst': '关系模型有错误。请先修正错误。',
   'relView.ie.emptyTitle': '还没有表',
-  'relView.ie.emptyBody': '添加一个表，或双击空白处。也可以直接写关系模型。',
+  'relView.ie.emptyBody': '添加一个表，或直接写关系模型。',
   'relView.ie.addColumn': '添加列',
   'relView.ie.addColumnLabel': '向 {table} 添加列',
   'relView.ie.deleteTableLabel': '删除表 {table}',
@@ -601,7 +601,7 @@ export const zhCN: Dictionary = {
   'relView.ie.colKey': '键',
   'relView.ie.colName': '名称',
   'relView.ie.linkKind': '关系类型',
-  'relView.ie.editKeysHint': '双击空白处可添加表。按 Delete 删除选中的表或关系，按 Esc 关闭工具。',
+  'relView.ie.editKeysHint': '按 Delete 删除选中的表或关系，按 Esc 关闭工具。',
   'sqlView.missingTypes': '{count} 个列未设置类型',
   'sqlView.settings.title': '列设置',
   'sqlView.settings.column': '列',
@@ -611,4 +611,11 @@ export const zhCN: Dictionary = {
   'sqlView.nullLabel': '{table} 表 {column} 列是否允许 NULL',
   'sqlView.uniqueLabel': '{table} 表 {column} 列的 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': '意见反馈',
+  'feedback.placeholder': '请留下您的意见',
+  'feedback.send': '发送',
+  'feedback.sent': '已发送',
+  'feedback.rateLimited': '请稍后再试',
+  'feedback.failed': '发送失败',
 };

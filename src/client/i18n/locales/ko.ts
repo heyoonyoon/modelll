@@ -483,7 +483,7 @@ export const ko = {
   'home.migrate.step1.title': '기존 ERD를 이미지로 저장합니다',
   'home.migrate.step1.body': '화면을 캡처하거나 원래 도구에서 PNG로 내보냅니다. 손으로 그린 ERD는 사진을 찍으면 됩니다.',
   'home.migrate.step2.title': 'AI에 이미지를 첨부하고 지시문을 붙여 넣습니다',
-  'home.migrate.cli.tab': '지시문',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': '쓰는 AI에 이미지를 첨부하고 이 지시문을 붙여 넣습니다.',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': '먼저 이 주소를 AI의 원격 MCP 서버나 커넥터로 추가합니다. 처음 한 번만 하면 됩니다.',
@@ -617,7 +617,7 @@ export const ko = {
   'relView.ie.pickChild': '{parent} 테이블을 참조할 자식 테이블을 누르세요',
   'relView.ie.fixTextFirst': '관계 모델 글에 오류가 있습니다. 글의 오류를 먼저 고쳐 주세요.',
   'relView.ie.emptyTitle': '아직 테이블이 없습니다',
-  'relView.ie.emptyBody': '테이블을 추가하거나 빈 곳을 두 번 누르세요. 관계 모델 글로 적어도 됩니다.',
+  'relView.ie.emptyBody': '테이블을 추가하거나 관계 모델 글로 적어도 됩니다.',
   'relView.ie.addColumn': '컬럼 추가',
   'relView.ie.addColumnLabel': '{table} 테이블에 컬럼 추가',
   'relView.ie.deleteTableLabel': '{table} 테이블 삭제',
@@ -628,7 +628,7 @@ export const ko = {
   'relView.ie.colKey': '키',
   'relView.ie.colName': '이름',
   'relView.ie.linkKind': '관계 종류',
-  'relView.ie.editKeysHint': '빈 곳을 두 번 누르면 테이블을 추가합니다. Delete 키는 고른 테이블이나 관계를 지우고 Esc 키는 도구를 끕니다.',
+  'relView.ie.editKeysHint': 'Delete 키는 고른 테이블이나 관계를 지우고 Esc 키는 도구를 끕니다.',
   'sqlView.missingTypes': '타입을 정하지 않은 컬럼 {count}개',
   'sqlView.settings.title': '컬럼 설정',
   'sqlView.settings.column': '컬럼',
@@ -638,6 +638,13 @@ export const ko = {
   'sqlView.nullLabel': '{table} 테이블 {column} 컬럼의 NULL 허용 여부',
   'sqlView.uniqueLabel': '{table} 테이블 {column} 컬럼의 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': '건의사항',
+  'feedback.placeholder': '의견을 남겨 주세요',
+  'feedback.send': '보내기',
+  'feedback.sent': '보냈습니다',
+  'feedback.rateLimited': '잠시 뒤에 다시 보내 주세요',
+  'feedback.failed': '보내지 못했습니다',
 } satisfies Record<string, MessageValue>;
 
 /** 사전의 키. 다른 언어 사전과 t()가 이 타입을 쓴다. */

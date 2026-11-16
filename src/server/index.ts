@@ -18,6 +18,9 @@
  * ADMIN_PORT(기본 9000, 0이면 관리자 페이지를 열지 않는다), ADMIN_HOST(기본 127.0.0.1. 컨테이너 안에서는 0.0.0.0),
  * ADMIN_PASSWORD_HASH(scripts/admin-password.mjs 로 만든 scrypt 해시. 없으면 로그인할 수 없다),
  * ADMIN_PUBLIC_PORT(터널의 로컬 포트를 9000이 아닌 값으로 쓸 때 그 포트. Host 검사에 쓴다).
+ *
+ * 의견함(src/server/feedback.ts): FEEDBACK(기본 on. off 또는 0이면 POST /api/feedback 이 404).
+ * 나라(src/server/geo.ts): COUNTRY_DB(mmdb 파일 경로. 기본은 npm 패키지의 DB-IP Lite. off면 나라를 찾지 않는다).
  */
 import path from 'node:path';
 import { createErdServer } from './server';
@@ -87,6 +90,8 @@ const server = createErdServer({
   adminHost: process.env.ADMIN_HOST || '127.0.0.1',
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH || undefined,
   adminPublicPort: limitFromEnv('ADMIN_PUBLIC_PORT', 0) || undefined,
+  feedback: !/^(off|0|false|no)$/i.test(process.env.FEEDBACK ?? ''),
+  countryDb: /^(off|0|false|no)$/i.test(process.env.COUNTRY_DB ?? '') ? null : process.env.COUNTRY_DB || undefined,
 });
 
 let stopping = false;

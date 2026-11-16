@@ -458,7 +458,7 @@ export const de: Dictionary = {
   'home.migrate.step1.title': 'ERD als Bild speichern',
   'home.migrate.step1.body': 'Mach einen Screenshot oder exportiere ein PNG aus dem ursprünglichen Tool. Bei einer Handzeichnung reicht ein Foto.',
   'home.migrate.step2.title': 'Bild an die KI anhängen und Prompt einfügen',
-  'home.migrate.cli.tab': 'Prompt',
+  'home.migrate.cli.tab': 'CLI',
   'home.migrate.cli.body': 'Hänge das Bild an deine KI an und füge diesen Prompt ein.',
   'home.migrate.chat.tab': 'MCP',
   'home.migrate.chat.mcp': 'Füge diese URL zuerst als Remote-MCP-Server oder Connector zu deiner KI hinzu. Das ist nur einmal nötig.',
@@ -592,7 +592,7 @@ export const de: Dictionary = {
   'relView.ie.pickChild': 'Klicken Sie auf die Kindtabelle, die {parent} referenziert',
   'relView.ie.fixTextFirst': 'Das relationale Modell enthält Fehler. Bitte zuerst beheben.',
   'relView.ie.emptyTitle': 'Noch keine Tabellen',
-  'relView.ie.emptyBody': 'Fügen Sie eine Tabelle hinzu oder doppelklicken Sie auf eine leere Stelle. Sie können auch das relationale Modell schreiben.',
+  'relView.ie.emptyBody': 'Fügen Sie eine Tabelle hinzu oder schreiben Sie das relationale Modell.',
   'relView.ie.addColumn': 'Spalte hinzufügen',
   'relView.ie.addColumnLabel': 'Spalte zu {table} hinzufügen',
   'relView.ie.deleteTableLabel': 'Tabelle {table} löschen',
@@ -603,7 +603,7 @@ export const de: Dictionary = {
   'relView.ie.colKey': 'Schlüssel',
   'relView.ie.colName': 'Name',
   'relView.ie.linkKind': 'Beziehungsart',
-  'relView.ie.editKeysHint': 'Doppelklick auf eine leere Stelle fügt eine Tabelle hinzu. Entf löscht die ausgewählte Tabelle oder Beziehung, Esc beendet das Werkzeug.',
+  'relView.ie.editKeysHint': 'Entf löscht die ausgewählte Tabelle oder Beziehung, Esc beendet das Werkzeug.',
   'sqlView.missingTypes': { one: '{count} Spalte ohne Typ', other: '{count} Spalten ohne Typ' },
   'sqlView.settings.title': 'Spalteneinstellungen',
   'sqlView.settings.column': 'Spalte',
@@ -613,4 +613,11 @@ export const de: Dictionary = {
   'sqlView.nullLabel': 'NULL-Zulässigkeit der Spalte {column} in {table}',
   'sqlView.uniqueLabel': 'UNIQUE für die Spalte {column} in {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
+  // ───────────── 건의사항 ─────────────
+  'feedback.title': 'Feedback',
+  'feedback.placeholder': 'Teilen Sie uns Ihre Meinung mit',
+  'feedback.send': 'Senden',
+  'feedback.sent': 'Gesendet',
+  'feedback.rateLimited': 'Bitte versuchen Sie es gleich noch einmal',
+  'feedback.failed': 'Senden fehlgeschlagen',
 };

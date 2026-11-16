@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { ErdEdge, ErdFile, ErdNode, Rect } from '../../shared/types';
+import { getLabelSize } from '../../shared/ydoc';
 import { redo, undo } from '../actions';
 import { copyText, remoteMcpUrl } from '../ai';
 import { zoomToRect } from '../canvas/ViewportControls';
@@ -278,12 +279,37 @@ function TitleInput() {
 
 type ShownStatus = 'connected' | 'connecting' | 'disconnected';
 
+/** 한 번 연결된 뒤 이 시간 안에 다시 붙으면 끊긴 것을 보여 주지 않는다(배포나 네트워크가 잠깐 바뀔 때) */
+export const RECONNECT_GRACE_MS = 3000;
+
+/** 연결됐던 화면이 잠깐 끊기면 RECONNECT_GRACE_MS 동안은 '연결됨'을 그대로 보여 준다 */
+function useCalmStatus(actual: ShownStatus): ShownStatus {
+  const [shown, setShown] = useState(actual);
+  const everConnected = useRef(false);
+  useEffect(() => {
+    if (actual === 'connected') {
+      everConnected.current = true;
+      setShown('connected');
+      return;
+    }
+    if (!everConnected.current) {
+      setShown(actual);
+      return;
+    }
+    // 이미 끊김을 보여 주고 있으면(연결 중으로 바뀌는 등) 바로 따라간다. 연결됨에서 벗어날 때만 기다린다
+    setShown((prev) => (prev === 'connected' ? prev : actual));
+    const timer = setTimeout(() => setShown(actual), RECONNECT_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [actual]);
+  return shown;
+}
+
 function ConnectionBadge() {
   const t = useT();
   const status = useConnectionStatus();
   const synced = useSynced();
   // 연결은 됐지만 서버 문서를 아직 다 받지 못한 동안은 '연결 중'으로 보여 준다
-  const shown: ShownStatus = status === 'connected' ? (synced ? 'connected' : 'connecting') : status;
+  const shown = useCalmStatus(status === 'connected' ? (synced ? 'connected' : 'connecting') : status);
   const text = { label: t(`status.${shown}.label`), hint: t(`status.${shown}.hint`) };
   return (
     <span
@@ -432,7 +458,7 @@ function ExportMenu() {
             testId="export-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`), 'toast.pngSaved', 'toast.pngFailed', 'png')
+              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`, { labelSize: getLabelSize(room.doc) }), 'toast.pngSaved', 'toast.pngFailed', 'png')
             }
           />
           <MenuItem
@@ -442,7 +468,7 @@ function ExportMenu() {
             testId="export-copy-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => copyPngToClipboard(n, ed), 'toast.clipboardCopied', 'toast.clipboardFailed', 'copy_png')
+              runImage((n, ed) => copyPngToClipboard(n, ed, { labelSize: getLabelSize(room.doc) }), 'toast.clipboardCopied', 'toast.clipboardFailed', 'copy_png')
             }
           />
           <MenuItem
@@ -451,7 +477,7 @@ function ExportMenu() {
             testId="export-svg"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`), 'toast.svgSaved', 'toast.svgFailed', 'svg')
+              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`, { labelSize: getLabelSize(room.doc) }), 'toast.svgSaved', 'toast.svgFailed', 'svg')
             }
           />
           <div className="topbar-menu-sep" role="separator" />

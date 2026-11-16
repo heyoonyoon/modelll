@@ -278,6 +278,9 @@ export const zhCN: Dictionary = {
   'view.minimap': '小地图',
   'view.hideAttributes': '隐藏属性',
   'view.attributesFollow': '属性随之移动',
+  'view.edgeLabelSize': '连线文字',
+  'view.edgeLabelSmaller': '连线文字变小',
+  'view.edgeLabelLarger': '连线文字变大',
   'view.minimapOn': '显示小地图',
   'view.minimapOff': '隐藏小地图',
 
@@ -488,6 +491,7 @@ export const zhCN: Dictionary = {
   'home.fact.expiry.title': '保留 30 天',
   'home.fact.expiry.body': '30 天内无人打开的图表会被自动删除，需要长期保留的图请保存为 JSON',
   'home.notation.title': '支持的表示法',
+  'home.privacy': '隐私政策',
   'home.notation.sub': '从 ERD 到关系模型、IE 图和 SQL，每个阶段都沿用熟悉的表示法',
   'home.notation.disjoint': '不相交特化',
   'home.notation.overlap': '可重叠特化',
@@ -614,8 +618,8 @@ export const zhCN: Dictionary = {
   'sqlView.uniqueLabel': '{table} 表 {column} 列的 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': '意见反馈',
-  'feedback.button': '反馈',
+  'feedback.title': "有什么不方便，随时告诉我们",
+  'feedback.button': '给开发者留言',
   'feedback.placeholder': '请留下您的意见',
   'feedback.send': '发送',
   'feedback.sent': '已发送',

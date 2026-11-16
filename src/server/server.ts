@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { ROOM_ID_PATTERN } from '../shared/types';
 import { createAdminServer, type AdminServer } from './admin';
+import { archiveAssets, archiveDirOf } from './assetArchive';
 import { FeedbackStore, type FeedbackLimits } from './feedback';
 import { createCountryLookup } from './geo';
 import { createApp } from './http';
@@ -27,6 +28,8 @@ export interface ErdServerOptions {
   dataDir?: string;
   /** 빌드된 클라이언트 폴더. 기본 dist/client */
   staticDir?: string;
+  /** 지난 버전의 화면 파일을 DATA_DIR/assets-archive 에 모아 함께 내준다(assetArchive.ts). 기본 false */
+  archiveAssets?: boolean;
   // 아래는 주로 테스트에서 시간을 줄이려고 쓴다
   maxClientsPerRoom?: number;
   saveDebounceMs?: number;
@@ -198,8 +201,11 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
   }
 
   let startedAt = Date.now();
+  const staticDir = opts.staticDir ?? defaultStaticDir();
+  const assetArchiveDir = opts.archiveAssets ? archiveDirOf(opts.dataDir ?? './data') : undefined;
   const app = createApp({
-    staticDir: opts.staticDir ?? defaultStaticDir(),
+    staticDir,
+    assetArchiveDir,
     stats: () => hub.stats(),
     roomInfo: (roomId) => hub.roomInfo(roomId),
     uptime: () => Math.round((Date.now() - startedAt) / 1000),
@@ -232,7 +238,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
             const sizes = hub.roomSizes();
             return { connections: sizes.reduce((a, b) => a + b, 0), openRooms: sizes.length };
           },
-          nameOf: (key, roomId) => hub.nameOf(key, roomId),
+          connInfo: (key, roomId) => hub.connInfo(key, roomId),
           passwordHash: opts.adminPasswordHash,
           feedback,
           log,
@@ -257,6 +263,8 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       if (metrics) await metrics.init();
       // 지표가 솔트를 먼저 만들어 두어야 의견함이 같은 솔트를 읽는다
       if (feedback) await feedback.init();
+      // 지금 버전의 화면 파일을 보관함에 넣어 둔다(다음 배포 뒤 옛 탭이 찾는다)
+      if (assetArchiveDir) await archiveAssets(staticDir, assetArchiveDir, { log });
 
       const httpServer = http.createServer(app);
       const wsServer = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });

@@ -56,6 +56,17 @@ interface Conn {
   awarenessIds: Set<number>;
   /** 방을 읽어 오는 동안 받은 메시지. 방이 준비되면 null이 된다. */
   queue: Uint8Array[] | null;
+  /** 이 연결이 마지막으로 문서를 고친 시각(ms). 고친 적이 없으면 0. 관리자 화면용 */
+  lastEdit: number;
+  /** 이 연결이 마지막으로 커서나 선택을 바꾼 시각(ms). 바꾼 적이 없으면 0. 관리자 화면용 */
+  lastMove: number;
+}
+
+/** 관리자 화면의 실시간 목록에 보이는 연결 정보(메모리에서만 읽고 저장하지 않는다) */
+export interface ConnInfo {
+  name: string | null;
+  lastEdit: number;
+  lastMove: number;
 }
 
 interface Room {
@@ -133,19 +144,23 @@ export class SyncHub {
   }
 
   /**
-   * 이 연결이 방에 알린 표시 이름(awareness의 user.name). 관리자 화면의 실시간 목록에만 쓰고 저장하지 않는다.
-   * 이름을 아직 정하지 않았거나 연결을 찾지 못하면 null
+   * 이 연결이 방에 알린 표시 이름(awareness의 user.name)과 마지막으로 고치거나 움직인 시각.
+   * 관리자 화면의 실시간 목록에만 쓰고 저장하지 않는다. 연결을 찾지 못하면 null
    */
-  nameOf(ws: object, roomId: string): string | null {
+  connInfo(ws: object, roomId: string): ConnInfo | null {
     const room = this.rooms.get(roomId);
     const conn = room?.conns.get(ws as WebSocket);
     if (!room || !conn) return null;
+    let name: string | null = null;
     const states = room.awareness.getStates();
     for (const id of conn.awarenessIds) {
       const user = (states.get(id) as { user?: { name?: unknown } } | undefined)?.user;
-      if (user && typeof user.name === 'string' && user.name.trim()) return user.name.trim().slice(0, 40);
+      if (user && typeof user.name === 'string' && user.name.trim()) {
+        name = user.name.trim().slice(0, 40);
+        break;
+      }
     }
-    return null;
+    return { name, lastEdit: conn.lastEdit, lastMove: conn.lastMove };
   }
 
   /** roomId는 호출하는 쪽에서 검증한 값이어야 한다. 방을 메모리에 올리지는 않는다. */
@@ -181,7 +196,7 @@ export class SyncHub {
       room.unloadTimer = null;
     }
 
-    const conn: Conn = { ws, alive: true, awarenessIds: new Set(), queue: [] };
+    const conn: Conn = { ws, alive: true, awarenessIds: new Set(), queue: [], lastEdit: 0, lastMove: 0 };
     room.conns.set(ws, conn);
     this.log(`join room=${room.id} clients=${room.conns.size}`);
 
@@ -320,7 +335,16 @@ export class SyncHub {
       // 보낸 사람은 이미 가지고 있는 변경이다
       for (const conn of room.conns.values()) if (conn !== origin) this.send(conn, message);
       this.markDirty(room);
-      if (this.onEdit && origin && room.conns.get((origin as Conn).ws) === origin) this.onEdit(room.id);
+      if (origin && room.conns.get((origin as Conn).ws) === origin) {
+        (origin as Conn).lastEdit = Date.now();
+        this.onEdit?.(room.id);
+      }
+    });
+
+    // 내용이 바뀐 awareness만(커서, 선택, 편집 중인 도형) 움직임으로 친다. 15초마다 오는 생존 신호는 'change'가 아니다
+    room.awareness.on('change', ({ updated }: { updated: number[] }, origin: unknown) => {
+      const sender = this.connOf(room, origin);
+      if (sender && updated.length > 0) sender.lastMove = Date.now();
     });
 
     room.awareness.on(

@@ -12,7 +12,8 @@
  * 우클릭 메뉴(ContextMenu)와 이름 정하기 창(NicknameDialog)은 창 기준이라 여기에 넣지 않는다(방 화면이 한 번 그린다).
  * 키보드 단축키(useShortcuts)도 방 화면이 한 번 건다.
  */
-import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { AdSlot, adHeight } from '../ads/AdSlot';
 import { useUi } from '../state/ui';
 import { HelpOverlay } from '../ui/HelpOverlay';
 import { Inspector } from '../ui/Inspector';
@@ -43,6 +44,9 @@ export function ErdPane() {
   const size = useUi((s) => erdPaneSize(s.canvasSize));
   // 작은 pane에서는 미니맵이 캔버스를 너무 많이 가린다. 켜 둔 설정은 그대로 두고 그리지만 않는다
   const showMinimap = panels.minimap && size === 'full';
+  // 광고는 넓은 pane에서만, 미니맵 바로 위에 하나 고정한다. 오른쪽 패널은 그만큼 아래를 비운다
+  const paneHeight = useUi((s) => s.canvasSize.h);
+  const adH = size === 'full' ? adHeight(paneHeight, showMinimap) : 0;
 
   // pane 안의 빈 곳이나 패널을 눌러도 포커스를 이 pane으로 가져온다(다른 pane에 있던 포커스를 뺀다).
   // 캔버스 자체는 Canvas가, 입력창과 버튼은 브라우저가 스스로 포커스를 받는다.
@@ -62,6 +66,8 @@ export function ErdPane() {
       data-testid="erd-pane"
       data-size={size}
       data-minimap={showMinimap ? 'on' : 'off'}
+      data-ad={adH > 0 ? 'on' : undefined}
+      style={adH > 0 ? ({ '--erd-ad-h': `${adH}px` } as CSSProperties) : undefined}
       tabIndex={-1}
       onPointerDownCapture={takeFocus}
     >
@@ -77,6 +83,11 @@ export function ErdPane() {
       <div className="erd-slot erd-slot-bottom-left">
         <ZoomControls />
       </div>
+      {adH > 0 && (
+        <div className="erd-slot erd-slot-ad">
+          <AdSlot height={adH} />
+        </div>
+      )}
       <div className="erd-slot erd-slot-bottom-right">{showMinimap && <Minimap />}</div>
       {panels.help && <HelpOverlay />}
     </div>

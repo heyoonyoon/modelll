@@ -34,7 +34,7 @@ vi.mock('../canvas/ViewportControls', () => ({ zoomToRect: ex.zoomToRect }));
 vi.mock('../presence/Presence', () => ({ UserAvatars: () => <div data-testid="avatars" /> }));
 vi.mock('./IssuesPanel', () => ({ useIssueCount: () => ex.issueCount }));
 
-import { TopBar } from './TopBar';
+import { RECONNECT_GRACE_MS, TopBar } from './TopBar';
 import { useToasts } from './toast';
 
 type Handler = (arg: never) => void;
@@ -161,7 +161,8 @@ describe('TopBar 제목', () => {
 });
 
 describe('TopBar 연결 상태', () => {
-  it('상태에 따라 글자와 data-status가 바뀐다', () => {
+  it('상태에 따라 글자와 data-status가 바뀐다. 연결됐던 화면이 잠깐 끊긴 것은 3초 동안 보여 주지 않는다', () => {
+    vi.useFakeTimers();
     const { room, emit } = makeRoom();
     renderBar(room);
     const el = screen.getByTestId('connection-status');
@@ -169,12 +170,23 @@ describe('TopBar 연결 상태', () => {
     expect(el.textContent).toBe('저장됨');
     expect(el.title).not.toBe('');
 
+    // 잠깐 끊겼다 다시 붙으면(배포 등) 끊긴 것을 보여 주지 않는다
     act(() => emit('status', { status: 'disconnected' }));
+    act(() => vi.advanceTimersByTime(RECONNECT_GRACE_MS - 100));
+    expect(el.dataset.status).toBe('connected');
+    act(() => emit('status', { status: 'connected' }));
+    act(() => vi.advanceTimersByTime(RECONNECT_GRACE_MS));
+    expect(el.dataset.status).toBe('connected');
+
+    // 오래 끊겨 있으면 보여 준다
+    act(() => emit('status', { status: 'disconnected' }));
+    act(() => vi.advanceTimersByTime(RECONNECT_GRACE_MS));
     expect(el.dataset.status).toBe('disconnected');
     expect(el.textContent).toBe('연결 끊김');
     expect(el.title).toBe('다시 연결되면 변경 내용이 자동으로 합쳐집니다');
 
     act(() => emit('status', { status: 'connecting' }));
+    act(() => vi.advanceTimersByTime(RECONNECT_GRACE_MS));
     expect(el.dataset.status).toBe('connecting');
     expect(el.textContent).toBe('연결 중');
 
@@ -183,9 +195,11 @@ describe('TopBar 연결 상태', () => {
       emit('sync', false);
       emit('status', { status: 'connected' });
     });
+    act(() => vi.advanceTimersByTime(RECONNECT_GRACE_MS));
     expect(el.dataset.status).toBe('connecting');
     act(() => emit('sync', true));
     expect(el.dataset.status).toBe('connected');
+    vi.useRealTimers();
   });
 });
 

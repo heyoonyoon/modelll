@@ -52,7 +52,8 @@ export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 't
 
   useEffect(() => {
     if (!open) return;
-    areaRef.current?.focus();
+    // 페이지가 움직이면 열리는 애니메이션이 끊겨 보인다. 스크롤 없이 포커스만 옮긴다
+    areaRef.current?.focus({ preventScroll: true });
     const onDown = (e: PointerEvent) => {
       const target = e.target as Node | null;
       if (!target) return;
@@ -128,11 +129,14 @@ export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 't
       data-open={open || undefined}
       data-testid="feedback"
     >
-      {open && (
+      {/* 창은 늘 그려 두고 보이기만 바꾼다. 누르는 순간 새로 만들면 첫 프레임이 늦어 버벅여 보인다 */}
+      {(
         <div
           ref={panelRef}
-          className="fb-panel"
+          className={`fb-panel${open ? ' is-open' : ''}`}
           role="dialog"
+          aria-hidden={open ? undefined : true}
+          inert={!open}
           aria-labelledby={titleId}
           data-testid="feedback-panel"
           onKeyDown={onPanelKey}

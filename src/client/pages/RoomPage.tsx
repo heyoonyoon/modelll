@@ -35,10 +35,12 @@ import { entryKind, useRoomTelemetry } from '../telemetry';
 import type { EntryKind } from '../../shared/telemetry';
 import { ContextMenu } from '../ui/ContextMenu';
 import { TopBar } from '../ui/TopBar';
+import { loadChunk } from '../chunkReload';
 import './RoomPage.css';
 
 // 관계 모델 쪽 pane은 엔진과 함께 따로 내려받는다(탭 제목과 아이콘은 paneMeta에서 바로 가져온다)
-const panesModule = () => import('../relational/panes');
+// 배포 뒤 옛 화면이 이 파일을 못 찾으면 하얀 화면 대신 한 번 새로 고친다(chunkReload.ts)
+const panesModule = () => loadChunk(() => import('../relational/panes'));
 const RelationalTextPane = lazy(() => panesModule().then((m) => ({ default: m.RelationalTextPane })));
 const IePane = lazy(() => panesModule().then((m) => ({ default: m.IePane })));
 const SqlPane = lazy(() => panesModule().then((m) => ({ default: m.SqlPane })));

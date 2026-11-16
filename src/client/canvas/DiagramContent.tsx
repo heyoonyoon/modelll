@@ -6,7 +6,7 @@ import type { ErdEdge, ErdNode } from '../../shared/types';
 import { EdgeShape } from './EdgeShape';
 import { NodeShape } from './NodeShape';
 
-export function DiagramContent({ nodes, edges }: { nodes: ErdNode[]; edges: ErdEdge[] }) {
+export function DiagramContent({ nodes, edges, labelSize }: { nodes: ErdNode[]; edges: ErdEdge[]; labelSize?: number }) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const siblings = siblingInfo(edges);
   return (
@@ -16,7 +16,7 @@ export function DiagramContent({ nodes, edges }: { nodes: ErdNode[]; edges: ErdE
         const t = byId.get(e.target);
         if (!s || !t) return null;
         const sib = siblings.get(e.id) ?? { index: 0, count: 1, pair: 1 };
-        return <EdgeShape key={e.id} edge={e} geometry={computeEdgeGeometry(e, s, t, sib.index, sib.count, sib.pair)} />;
+        return <EdgeShape key={e.id} edge={e} geometry={computeEdgeGeometry(e, s, t, sib.index, sib.count, sib.pair)} labelSize={labelSize} />;
       })}
       {nodes.map((n) => (
         <NodeShape key={n.id} node={n} />

@@ -170,9 +170,13 @@ describe('서비스 지표 모으기', () => {
     expect(list[0].who).not.toBe(list[1].who);
     expect(list[0].name).toBeNull();
     // 이름은 방에 알린 awareness에서 읽는다. 첫 탭에 이름이 없으면 같은 줄의 다른 탭에서 찾는다
-    const named = s.liveList((key, roomId) => (key === a2 && roomId === 'room1' ? '희윤' : null));
-    expect(named[0].name).toBe('희윤');
-    expect(named[1].name).toBeNull();
+    const named = s.liveList((key, roomId) => {
+      if (roomId !== 'room1') return null;
+      return key === a2 ? { name: '희윤', lastEdit: 0, lastMove: 500 } : { name: null, lastEdit: 300, lastMove: 100 };
+    });
+    // 같은 줄의 탭들 가운데 가장 최근 시각을 쓴다
+    expect(named[0]).toMatchObject({ name: '희윤', lastEdit: 300, lastMove: 500 });
+    expect(named[1]).toMatchObject({ name: null, lastEdit: 0, lastMove: 0 });
     s.wsClose(a1, 1000);
     s.wsClose(a2, 1000);
     expect(s.liveList()).toHaveLength(1);

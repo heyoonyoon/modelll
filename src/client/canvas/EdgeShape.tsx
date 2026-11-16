@@ -18,6 +18,8 @@ export interface EdgeShapeProps {
   related?: boolean;
   /** 다른 pane의 강조가 걸려 있고 이 선은 그 대상이 아니다. 옅게 그린다 */
   dimmed?: boolean;
+  /** 카디널리티 글자 크기(방 설정). 역할 이름은 2 작게 그린다 */
+  labelSize?: number;
 }
 
 const HIT_WIDTH = 14;
@@ -25,7 +27,20 @@ const HIGHLIGHT_COLOR = '#f59e0b';
 /** 다른 pane이 가리킨 선의 색(호박색보다 한 단계 짙게 해서 흰 바탕에서도 또렷하게) */
 const RELATED_STROKE = '#d97706';
 const DIMMED_OPACITY = 0.42;
-const ROLE_FONT_SIZE = STYLE.labelFontSize - 2;
+
+/**
+ * 글자가 기본보다 크면 선과 겹치지 않도록 선에서 그만큼 더 떨어뜨린다.
+ * 선의 가운데에서 글자 자리로 가는 방향으로 늘어난 글자 높이의 절반만큼 민다.
+ */
+export function pushLabel(pos: { x: number; y: number }, from: { x: number; y: number }, size: number): { x: number; y: number } {
+  const extra = (size - STYLE.labelFontSize) / 2;
+  if (extra <= 0) return pos;
+  const dx = pos.x - from.x;
+  const dy = pos.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (!(len > 0)) return pos;
+  return { x: pos.x + (dx / len) * extra, y: pos.y + (dy / len) * extra };
+}
 
 /**
  * 역할 이름이 선의 옆쪽에 놓이면 선에서 멀어지는 방향으로 글자가 뻗게 한다.
@@ -39,7 +54,10 @@ function roleAnchor(geometry: EdgeGeometry): 'start' | 'middle' | 'end' {
   return dx > 0 ? 'start' : 'end';
 }
 
-function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related, dimmed }: EdgeShapeProps) {
+function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related, dimmed, labelSize = STYLE.labelFontSize }: EdgeShapeProps) {
+  const roleSize = labelSize - 2;
+  const labelPos = pushLabel(geometry.labelPos, geometry.mid, labelSize);
+  const rolePos = pushLabel(geometry.rolePos, geometry.mid, labelSize);
   const color = selected ? STYLE.accent : related ? RELATED_STROKE : STYLE.stroke;
   // 글자는 강조 중에도 읽기 쉬운 본래 색으로 둔다
   const labelColor = selected ? STYLE.accent : STYLE.stroke;
@@ -107,12 +125,12 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related
       />
       {edge.label && (
         <text
-          x={geometry.labelPos.x}
-          y={geometry.labelPos.y}
+          x={labelPos.x}
+          y={labelPos.y}
           dy="0.35em"
           textAnchor="middle"
           fontFamily={STYLE.fontFamily}
-          fontSize={STYLE.labelFontSize}
+          fontSize={labelSize}
           fill={labelColor}
           stroke="#ffffff"
           strokeWidth={4}
@@ -125,12 +143,12 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related
       )}
       {edge.role && (
         <text
-          x={geometry.rolePos.x}
-          y={geometry.rolePos.y}
+          x={rolePos.x}
+          y={rolePos.y}
           dy="0.35em"
           textAnchor={roleAnchor(geometry)}
           fontFamily={STYLE.fontFamily}
-          fontSize={ROLE_FONT_SIZE}
+          fontSize={roleSize}
           fill={labelColor}
           stroke="#ffffff"
           strokeWidth={4}
@@ -154,7 +172,7 @@ function sameProps(a: EdgeShapeProps, b: EdgeShapeProps): boolean {
   if (!!a.selected !== !!b.selected || !!a.hovered !== !!b.hovered || !!a.highlighted !== !!b.highlighted) {
     return false;
   }
-  if (!!a.related !== !!b.related || !!a.dimmed !== !!b.dimmed) {
+  if (!!a.related !== !!b.related || !!a.dimmed !== !!b.dimmed || a.labelSize !== b.labelSize) {
     return false;
   }
   if (a.edge !== b.edge) {

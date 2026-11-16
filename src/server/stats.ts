@@ -181,6 +181,10 @@ export interface LiveRow {
   who: string;
   /** 방에 알린 표시 이름(메모리에서만 읽고 저장하지 않는다). 없으면 null */
   name: string | null;
+  /** 이 줄의 탭들이 마지막으로 문서를 고친 시각(ms). 없으면 0 */
+  lastEdit: number;
+  /** 마지막으로 커서나 선택을 움직인 시각(ms). 없으면 0 */
+  lastMove: number;
   country: string;
   device: 'm' | 'd';
   lang: string | null;
@@ -572,18 +576,24 @@ export class StatsCollector {
   }
 
   /** 지금 연결된 브라우저 목록(같은 브라우저와 같은 방의 탭은 한 줄). 오래 연결된 순 */
-  liveList(nameOf?: (key: object, roomId: string) => string | null): LiveRow[] {
+  liveList(infoOf?: (key: object, roomId: string) => { name: string | null; lastEdit: number; lastMove: number } | null): LiveRow[] {
     const rows = new Map<string, LiveRow>();
     for (const [key, c] of this.live) {
       const k = `${c.userKey}|${c.roomId}`;
       const row = rows.get(k);
       if (row) {
         row.tabs += 1;
-        if (!row.name && nameOf) row.name = nameOf(key, c.roomId);
+        const info = infoOf?.(key, c.roomId);
+        if (info) {
+          if (!row.name) row.name = info.name;
+          row.lastEdit = Math.max(row.lastEdit, info.lastEdit);
+          row.lastMove = Math.max(row.lastMove, info.lastMove);
+        }
         row.since = Math.min(row.since, c.start);
         continue;
       }
-      rows.set(k, { who: c.userKey.startsWith('#') ? '?' : c.userKey.slice(0, 4), name: nameOf ? nameOf(key, c.roomId) : null, country: c.country, device: c.device, lang: c.lang, since: c.start, room: this.hashRoom(c.roomId).slice(0, 6), isNew: c.isNew, tabs: 1 });
+      const info = infoOf?.(key, c.roomId) ?? null;
+      rows.set(k, { who: c.userKey.startsWith('#') ? '?' : c.userKey.slice(0, 4), name: info?.name ?? null, lastEdit: info?.lastEdit ?? 0, lastMove: info?.lastMove ?? 0, country: c.country, device: c.device, lang: c.lang, since: c.start, room: this.hashRoom(c.roomId).slice(0, 6), isNew: c.isNew, tabs: 1 });
     }
     return [...rows.values()].sort((a, b) => a.since - b.since);
   }

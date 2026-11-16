@@ -278,6 +278,9 @@ export const ja: Dictionary = {
   'view.minimap': 'ミニマップ',
   'view.hideAttributes': '属性を隠す',
   'view.attributesFollow': '属性も一緒に移動',
+  'view.edgeLabelSize': '線の文字',
+  'view.edgeLabelSmaller': '線ラベルを小さく',
+  'view.edgeLabelLarger': '線ラベルを大きく',
   'view.minimapOn': 'ミニマップを表示',
   'view.minimapOff': 'ミニマップを非表示',
 
@@ -488,6 +491,7 @@ export const ja: Dictionary = {
   'home.fact.expiry.title': '30日間保管',
   'home.fact.expiry.body': '30日間だれも開かなかったダイアグラムは自動的に削除されるため、残しておきたい図は JSON で保存しておきます',
   'home.notation.title': '対応している表記',
+  'home.privacy': 'プライバシーポリシー',
   'home.notation.sub': 'ERD から関係モデル、IE 図、SQL まで、各段階でおなじみの表記をそのまま使います',
   'home.notation.disjoint': '重ならない特殊化',
   'home.notation.overlap': '重なりうる特殊化',
@@ -614,8 +618,8 @@ export const ja: Dictionary = {
   'sqlView.uniqueLabel': '{table} テーブルの {column} 列の UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': 'ご意見',
-  'feedback.button': 'ご意見',
+  'feedback.title': "不便な点を気軽にどうぞ",
+  'feedback.button': '開発者にひとこと',
   'feedback.placeholder': 'ご意見をお寄せください',
   'feedback.send': '送信',
   'feedback.sent': '送信しました',

@@ -298,6 +298,9 @@ export const ko = {
   'view.minimap': '미니맵',
   'view.hideAttributes': '속성 숨기기',
   'view.attributesFollow': '속성 함께 이동',
+  'view.edgeLabelSize': '선 글자',
+  'view.edgeLabelSmaller': '선 글자 작게',
+  'view.edgeLabelLarger': '선 글자 크게',
   'view.minimapOn': '미니맵 켜기',
   'view.minimapOff': '미니맵 끄기',
 
@@ -515,6 +518,7 @@ export const ko = {
   'home.fact.expiry.title': '30일 동안 보관합니다',
   'home.fact.expiry.body': '30일 동안 아무도 열지 않은 다이어그램은 자동으로 삭제되므로 오래 둘 그림은 JSON으로 저장해 둡니다',
   'home.notation.title': '지원하는 표기',
+  'home.privacy': '개인정보처리방침',
   'home.notation.sub': 'ERD부터 관계 모델, IE 다이어그램, SQL까지 각 단계의 표기를 그대로 씁니다',
   'home.notation.disjoint': '겹치지 않는 특수화',
   'home.notation.overlap': '겹칠 수 있는 특수화',
@@ -641,8 +645,8 @@ export const ko = {
   'sqlView.uniqueLabel': '{table} 테이블 {column} 컬럼의 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': '건의사항',
-  'feedback.button': '의견 남기기',
+  'feedback.title': "불편한 점 편하게 남겨 주세요~",
+  'feedback.button': '개발자에게 한마디',
   'feedback.placeholder': '의견을 남겨 주세요',
   'feedback.send': '보내기',
   'feedback.sent': '보냈습니다',

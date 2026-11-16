@@ -3,7 +3,9 @@
  * 검증은 개수만 보이고, 누르면 문제 목록이 한 줄씩 펼쳐진다. 한 줄을 누르면 전체 문장이 보이고 그 도형으로 화면이 옮겨 간다.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useEdges, useNodes, useTitle } from "../collab/hooks";
+import { LABEL_SIZE_MAX, LABEL_SIZE_MIN } from "../../shared/ydoc";
+import { setEdgeLabelSize } from "../collab/docOps";
+import { useEdges, useLabelSize, useNodes, useRoom, useTitle } from "../collab/hooks";
 import { tSentence, useT } from "../i18n";
 import { attrView, useAttrView } from "../state/attrView";
 import { ui, useUi } from "../state/ui";
@@ -83,6 +85,48 @@ const ATTR_FOLLOW_ICON = (
     <path d="M7.5 7 9.6 4.8M7.5 9l2.1 2.2" />
   </RowIcon>
 );
+
+const LABEL_SIZE_ICON = (
+  <RowIcon>
+    <path d="M2 12.5 5 4l3 8.5M3.1 9.5h3.8" />
+    <path d="M10 12.5V8.3a1.8 1.8 0 0 1 3.6 0v4.2M10 10.3h3.6" />
+  </RowIcon>
+);
+
+/** 선 글자(카디널리티, 역할 이름) 크기. 방 전체에 적용된다 */
+function LabelSizeRow() {
+  const t = useT();
+  const room = useRoom();
+  const size = useLabelSize();
+  const step = (d: number) => setEdgeLabelSize(room.doc, size + d);
+  return (
+    <div className="di-row di-stepper" data-testid="label-size">
+      {LABEL_SIZE_ICON}
+      <span className="di-row-label">{t("view.edgeLabelSize")}</span>
+      <button
+        type="button"
+        className="di-step"
+        aria-label={t("view.edgeLabelSmaller")}
+        disabled={size <= LABEL_SIZE_MIN}
+        onClick={() => step(-2)}
+      >
+        −
+      </button>
+      <span className="di-step-value" data-testid="label-size-value">
+        {size}
+      </span>
+      <button
+        type="button"
+        className="di-step"
+        aria-label={t("view.edgeLabelLarger")}
+        disabled={size >= LABEL_SIZE_MAX}
+        onClick={() => step(2)}
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 function SwitchRow({
   icon,
@@ -357,6 +401,7 @@ export function DiagramInfo() {
               on={minimapOpen}
               onChange={(on) => ui().togglePanel("minimap", on)}
             />
+            <LabelSizeRow />
           </div>
           <IssuesSection />
         </div>

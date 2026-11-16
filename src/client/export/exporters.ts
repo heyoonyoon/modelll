@@ -9,6 +9,7 @@ import type * as Y from 'yjs';
 import { computeEdgeGeometry, diagramBounds, siblingInfo, unionBounds } from '../../shared/geometry';
 import { STYLE, isAnchor, type ErdEdge, type ErdFile, type ErdNode, type NodeKind, type Point, type Rect } from '../../shared/types';
 import { DiagramContent } from '../canvas/DiagramContent';
+import { pushLabel } from '../canvas/EdgeShape';
 import { addEdges, addNodes, getEdges, getNodes, getTitle, newId, replaceAll, setTitle, transact } from '../collab/docOps';
 import { t } from '../i18n';
 import { measureText } from '../text/measure';
@@ -21,6 +22,8 @@ export interface ImageOptions {
   background?: string | null;
   /** PNG 해상도 배율. 기본 2 */
   scale?: number;
+  /** 선 글자 크기(방 설정). 기본 STYLE.labelFontSize */
+  labelSize?: number;
 }
 
 const DEFAULT_PADDING = 24;
@@ -46,7 +49,7 @@ function backgroundOf(opts: ImageOptions | undefined): string | null {
 }
 
 /** 선과 선의 글자가 차지하는 범위들. 노드 범위 밖으로 나가는 부분이 잘리지 않게 하는 데 쓴다. */
-function edgeExtents(nodes: ErdNode[], edges: ErdEdge[]): Rect[] {
+function edgeExtents(nodes: ErdNode[], edges: ErdEdge[], labelSize: number = STYLE.labelFontSize): Rect[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const out: Rect[] = [];
   const around = (p: Point, halfW: number, halfH: number) => {
@@ -74,12 +77,12 @@ function edgeExtents(nodes: ErdNode[], edges: ErdEdge[]): Rect[] {
         around({ x: (g.start.x + 2 * g.control.x + g.end.x) / 4, y: (g.start.y + 2 * g.control.y + g.end.y) / 4 }, line, line);
       }
       // 글자는 정렬 방식(가운데, 왼쪽, 오른쪽)을 모르므로 양쪽으로 글자 너비만큼 잡는다
-      const halfH = STYLE.lineHeight / 2 + LABEL_MARGIN;
+      const halfH = Math.max(STYLE.lineHeight, labelSize * 1.4) / 2 + LABEL_MARGIN;
       if (e.label && isFinitePoint(g.labelPos)) {
-        around(g.labelPos, measureText(e.label, STYLE.labelFontSize).width + LABEL_MARGIN, halfH);
+        around(pushLabel(g.labelPos, g.mid, labelSize), measureText(e.label, labelSize).width + LABEL_MARGIN, halfH);
       }
       if (e.role && isFinitePoint(g.rolePos)) {
-        around(g.rolePos, measureText(e.role, STYLE.labelFontSize).width + LABEL_MARGIN, halfH);
+        around(pushLabel(g.rolePos, g.mid, labelSize), measureText(e.role, labelSize).width + LABEL_MARGIN, halfH);
       }
     } catch {
       // 기하 계산이 실패한 선은 범위 계산에서만 뺀다
@@ -92,12 +95,12 @@ function edgeExtents(nodes: ErdNode[], edges: ErdEdge[]): Rect[] {
  * 내보낼 그림의 범위(월드 좌표, 정수). diagramBounds(nodes, padding)을 포함하고
  * 선의 글자가 바깥으로 나가 있으면 그만큼 더 넓다. 노드가 없으면 null.
  */
-export function exportBounds(nodes: ErdNode[], edges: ErdEdge[], padding: number = DEFAULT_PADDING): Rect | null {
+export function exportBounds(nodes: ErdNode[], edges: ErdEdge[], padding: number = DEFAULT_PADDING, labelSize?: number): Rect | null {
   const pad = Number.isFinite(padding) && padding >= 0 ? padding : DEFAULT_PADDING;
   const valid = nodes.filter(hasFiniteBox);
   const base = diagramBounds(valid, Math.max(pad, STROKE_BLEED));
   if (!base) return null;
-  const all = unionBounds([base, ...edgeExtents(valid, edges)]) ?? base;
+  const all = unionBounds([base, ...edgeExtents(valid, edges, labelSize)]) ?? base;
   const x = Math.floor(all.x);
   const y = Math.floor(all.y);
   return { x, y, w: Math.max(1, Math.ceil(all.x + all.w) - x), h: Math.max(1, Math.ceil(all.y + all.h) - y) };
@@ -131,7 +134,7 @@ export function expandPaintOrder(markup: string): string {
  * bounds 범위를 그린 SVG 문자열. pixelWidth/pixelHeight를 주면 svg의 width/height 속성만 그 값으로 쓴다
  * (viewBox는 그대로). PNG로 그릴 때 브라우저가 처음부터 그 해상도로 그리게 하려는 것.
  */
-function buildSvg(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: string | null, pixelWidth?: number, pixelHeight?: number): string {
+function buildSvg(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: string | null, pixelWidth?: number, pixelHeight?: number, labelSize?: number): string {
   let svg = renderToStaticMarkup(
     createElement(
       'svg',
@@ -144,7 +147,7 @@ function buildSvg(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: strin
         fontSize: STYLE.fontSize,
       },
       background ? createElement('rect', { x: b.x, y: b.y, width: b.w, height: b.h, fill: background }) : null,
-      createElement(DiagramContent, { nodes: nodes.filter(hasFiniteBox), edges }),
+      createElement(DiagramContent, { nodes: nodes.filter(hasFiniteBox), edges, labelSize }),
     ),
   );
   svg = expandPaintOrder(stripHitAreas(svg)).replace(XML_INVALID_RE, '');
@@ -157,9 +160,9 @@ function buildSvg(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: strin
 
 /** 다이어그램 전체를 담은 독립 SVG 문자열(선택 표시, 격자 없음). 노드가 없으면 null */
 export function buildSvgString(nodes: ErdNode[], edges: ErdEdge[], opts?: ImageOptions): string | null {
-  const b = exportBounds(nodes, edges, opts?.padding ?? DEFAULT_PADDING);
+  const b = exportBounds(nodes, edges, opts?.padding ?? DEFAULT_PADDING, opts?.labelSize);
   if (!b) return null;
-  return buildSvg(nodes, edges, b, backgroundOf(opts));
+  return buildSvg(nodes, edges, b, backgroundOf(opts), undefined, undefined, opts?.labelSize);
 }
 
 // ───────────────────────── PNG ─────────────────────────
@@ -202,10 +205,10 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob | null> {
 }
 
 /** 한 배율로 그려 본다. 'no-image' = SVG를 읽지 못함(배율을 낮춰도 소용없다), null = canvas가 그 크기를 감당하지 못함 */
-async function rasterize(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: string | null, scale: number): Promise<Blob | 'no-image' | null> {
+async function rasterize(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background: string | null, scale: number, labelSize?: number): Promise<Blob | 'no-image' | null> {
   const pw = Math.max(1, Math.floor(b.w * scale));
   const ph = Math.max(1, Math.floor(b.h * scale));
-  const img = await loadSvgImage(buildSvg(nodes, edges, b, background, pw, ph));
+  const img = await loadSvgImage(buildSvg(nodes, edges, b, background, pw, ph, labelSize));
   if (!img) return 'no-image';
 
   const canvas = document.createElement('canvas');
@@ -251,13 +254,13 @@ async function rasterize(nodes: ErdNode[], edges: ErdEdge[], b: Rect, background
 export async function renderPngBlob(nodes: ErdNode[], edges: ErdEdge[], opts?: ImageOptions): Promise<Blob | null> {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return null;
   try {
-    const b = exportBounds(nodes, edges, opts?.padding ?? DEFAULT_PADDING);
+    const b = exportBounds(nodes, edges, opts?.padding ?? DEFAULT_PADDING, opts?.labelSize);
     if (!b) return null;
     const background = backgroundOf(opts);
     let scale = fitScale(b.w, b.h, opts?.scale ?? DEFAULT_SCALE);
     // 기기에 따라 한계가 더 낮으므로(모바일 등) 실패하면 배율을 절반씩 낮춰 다시 그린다
     for (let attempt = 0; attempt < 5; attempt++) {
-      const result = await rasterize(nodes, edges, b, background, scale);
+      const result = await rasterize(nodes, edges, b, background, scale, opts?.labelSize);
       if (result === 'no-image') return null;
       if (result) return result;
       scale /= 2;

@@ -33,8 +33,8 @@ export interface AdminDeps {
   metrics: StatsCollector;
   /** 지금 연결 수와 열린 방 수(SyncHub) */
   live(): { connections: number; openRooms: number };
-  /** 연결이 방에 알린 표시 이름(실시간 목록용). 없으면 이름 칸이 비어 있다 */
-  nameOf?: (key: object, roomId: string) => string | null;
+  /** 연결이 방에 알린 표시 이름과 마지막으로 고치거나 움직인 시각(실시간 목록용) */
+  connInfo?: (key: object, roomId: string) => { name: string | null; lastEdit: number; lastMove: number } | null;
   passwordHash?: string;
   /** 의견함. 없으면 의견과 이상 발송 목록이 비어 있다 */
   feedback?: FeedbackStore;
@@ -223,7 +223,7 @@ export function createAdminServer(deps: AdminDeps): AdminServer {
       countries: { today: m.countries(1), d7: m.countries(7), d30: m.countries(30) },
       feedbackTotal: deps.feedback ? deps.feedback.list(0, 0).total : 0,
       now: new Date(now()).toISOString(),
-      live: { ...deps.live(), ...m.liveCounts(), list: m.liveList(deps.nameOf) },
+      live: { ...deps.live(), ...m.liveCounts(), list: m.liveList(deps.connInfo) },
       today: m.today(),
       active: m.activeUsers(),
       totals: m.totalsNow(),
@@ -334,7 +334,7 @@ export function createAdminServer(deps: AdminDeps): AdminServer {
         return;
       }
       if (path === '/api/summary') return json(res, 200, summary());
-      if (path === '/api/live') return json(res, 200, { now: new Date(now()).toISOString(), ...deps.live(), ...deps.metrics.liveCounts(), list: deps.metrics.liveList(deps.nameOf) });
+      if (path === '/api/live') return json(res, 200, { now: new Date(now()).toISOString(), ...deps.live(), ...deps.metrics.liveCounts(), list: deps.metrics.liveList(deps.connInfo) });
       if (path === '/api/feedback') {
         const offset = Math.max(0, Math.min(100_000, Number(url.searchParams.get('offset')) || 0));
         const limit = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 200));

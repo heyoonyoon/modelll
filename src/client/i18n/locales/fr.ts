@@ -280,6 +280,9 @@ export const fr: Dictionary = {
   'view.minimap': 'Mini-carte',
   'view.hideAttributes': 'Masquer les attributs',
   'view.attributesFollow': 'Déplacer les attributs avec',
+  'view.edgeLabelSize': 'Étiquettes',
+  'view.edgeLabelSmaller': 'Étiquettes plus petites',
+  'view.edgeLabelLarger': 'Étiquettes plus grandes',
   'view.minimapOn': 'Afficher la mini-carte',
   'view.minimapOff': 'Masquer la mini-carte',
 
@@ -490,6 +493,7 @@ export const fr: Dictionary = {
   'home.fact.expiry.title': 'Conservé 30 jours',
   'home.fact.expiry.body': 'Les diagrammes que personne n’ouvre pendant 30 jours sont supprimés automatiquement. Enregistrez donc une sauvegarde JSON de ce que vous voulez garder',
   'home.notation.title': 'Notation prise en charge',
+  'home.privacy': 'Politique de confidentialité',
   'home.notation.sub': 'De l’ERD au modèle relationnel, au diagramme IE et au SQL, chaque étape garde sa notation habituelle',
   'home.notation.disjoint': 'Spécialisation disjointe',
   'home.notation.overlap': 'Spécialisation chevauchante',
@@ -616,8 +620,8 @@ export const fr: Dictionary = {
   'sqlView.uniqueLabel': 'UNIQUE sur la colonne {column} de {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': 'Suggestions',
-  'feedback.button': 'Avis',
+  'feedback.title': "Dites-nous ce qui vous gêne",
+  'feedback.button': 'Un mot au développeur',
   'feedback.placeholder': 'Donnez-nous votre avis',
   'feedback.send': 'Envoyer',
   'feedback.sent': 'Envoyé',

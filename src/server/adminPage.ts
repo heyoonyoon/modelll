@@ -134,6 +134,8 @@ tr.pending td { color: var(--faint); }
 .tag { display: inline-block; font-size: 11px; line-height: 18px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); }
 .tag.new { background: #e8efff; border-color: #c7d6ff; color: #2f6bff; }
 .live-list code { font-size: 12px; color: var(--dim); }
+.live-list tr.idle td { color: var(--faint); }
+.live-list tr.idle td code { opacity: 0.6; }
 .tag.warn { background: var(--warn-bg); border-color: var(--warn-line); color: #8a5a00; }
 .tag.bad { background: var(--bad-bg); border-color: var(--bad-line); color: #9b2420; }
 .more { margin-top: 10px; display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 12px; }
@@ -386,6 +388,16 @@ function since(ms, nowMs) {
   if (m < 60) return m + '분';
   return Math.floor(m / 60) + '시간 ' + (m % 60) + '분';
 }
+/** 몇 분 전인지. 0이면(한 번도 없음) – */
+function ago(ms, nowMs) {
+  if (!ms) return '–';
+  var m = Math.max(0, Math.floor((nowMs - ms) / 60000));
+  if (m < 1) return '방금';
+  if (m < 60) return m + '분 전';
+  return Math.floor(m / 60) + '시간 ' + (m % 60) + '분 전';
+}
+/** 30분 넘게 고치지도 움직이지도 않았으면 자리를 비운 것으로 본다 */
+var IDLE_MS = 30 * 60 * 1000;
 function renderLiveList(live) {
   var el = $('live-list');
   if (!el) return;
@@ -394,9 +406,12 @@ function renderLiveList(live) {
   var users = typeof live.users === 'number' ? live.users : list.length;
   $('live-count').textContent = list.length ? users + '명' + (list.length !== users ? ', 방 연결 ' + list.length + '개' : '') : '';
   if (!list.length) { el.innerHTML = '<p class="empty">지금 접속한 사람이 없습니다</p>'; return; }
-  el.innerHTML = '<div class="scroll"><table class="live-list"><tr><th>사람</th><th>이름</th><th>나라</th><th>기기</th><th>언어</th><th class="num">접속 시간</th><th>방</th><th>신규/재방문</th></tr>' +
+  el.innerHTML = '<div class="scroll"><table class="live-list"><tr><th>사람</th><th>이름</th><th class="num">마지막 편집</th><th class="num">마지막 움직임</th><th>나라</th><th>기기</th><th>언어</th><th class="num">접속 시간</th><th>방</th><th>신규/재방문</th></tr>' +
     list.map(function (r) {
-      return '<tr><td><code>' + esc(r.who || '?') + '</code></td><td>' + (r.name ? esc(r.name) : '<span class="cc">–</span>') + '</td><td>' + countryLabel(r.country) + '</td><td>' + (r.device === 'm' ? '모바일' : '데스크톱') + '</td><td>' + esc(r.lang || '–') + '</td>' +
+      var last = Math.max(r.lastEdit || 0, r.lastMove || 0, r.since || 0);
+      var idle = nowMs - last > IDLE_MS;
+      return '<tr' + (idle ? ' class="idle" title="30분 넘게 고치거나 움직이지 않았습니다"' : '') + '><td><code>' + esc(r.who || '?') + '</code></td><td>' + (r.name ? esc(r.name) : '<span class="cc">–</span>') + '</td>' +
+        '<td class="num">' + esc(ago(r.lastEdit, nowMs)) + '</td><td class="num">' + esc(ago(r.lastMove, nowMs)) + '</td><td>' + countryLabel(r.country) + '</td><td>' + (r.device === 'm' ? '모바일' : '데스크톱') + '</td><td>' + esc(r.lang || '–') + '</td>' +
         '<td class="num">' + esc(since(r.since, nowMs)) + '</td><td><code>' + esc(r.room) + '</code>' + (r.tabs > 1 ? ' <span class="cc">탭 ' + esc(r.tabs) + '개</span>' : '') + '</td>' +
         '<td>' + (r.isNew ? '<span class="tag new">신규</span>' : '<span class="tag">재방문</span>') + '</td></tr>';
     }).join('') + '</table></div>';

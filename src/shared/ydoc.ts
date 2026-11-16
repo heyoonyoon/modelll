@@ -10,7 +10,7 @@
  */
 import * as Y from 'yjs';
 import type { DiagramChange } from './model/types';
-import { isAnchor, type ErdEdge, type ErdNode } from './types';
+import { STYLE, isAnchor, type ErdEdge, type ErdNode } from './types';
 
 export type YElementMap = Y.Map<Y.Map<unknown>>;
 
@@ -60,6 +60,21 @@ export function getNodes(doc: Y.Doc): ErdNode[] {
 }
 export function getEdges(doc: Y.Doc): ErdEdge[] {
   return Array.from(getEdgesMap(doc).values(), readEdge);
+}
+
+/** 선 글자(카디널리티, 역할 이름) 크기의 범위와 기본값 */
+export const LABEL_SIZE_MIN = 10;
+export const LABEL_SIZE_MAX = 32;
+
+/** 방 전체에 적용되는 선 글자 크기. 정하지 않았으면 STYLE.labelFontSize */
+export function getLabelSize(doc: Y.Doc): number {
+  const v = getMetaMap(doc).get('labelSize');
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(LABEL_SIZE_MAX, Math.max(LABEL_SIZE_MIN, Math.round(v))) : STYLE.labelFontSize;
+}
+
+export function setLabelSize(doc: Y.Doc, size: number, origin?: unknown): void {
+  const v = Math.min(LABEL_SIZE_MAX, Math.max(LABEL_SIZE_MIN, Math.round(size)));
+  doc.transact(() => getMetaMap(doc).set('labelSize', v), origin);
 }
 
 export function getTitle(doc: Y.Doc): string {

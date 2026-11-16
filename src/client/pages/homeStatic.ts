@@ -199,7 +199,7 @@ ${faq}
 </section>
 </main>
 <footer>
-<p>${esc(APP_NAME)} is open source under the MIT license: <a href="${REPO_URL}">${REPO_URL}</a>. Command-line tool: <a href="${NPM_URL}">${NPM_URL}</a>. For AI tools: <a href="/llms.txt">llms.txt</a>.</p>
+<p>${esc(APP_NAME)} is open source under the MIT license: <a href="${REPO_URL}">${REPO_URL}</a>. Command-line tool: <a href="${NPM_URL}">${NPM_URL}</a>. For AI tools: <a href="/llms.txt">llms.txt</a>. <a href="/privacy.html">Privacy policy</a>.</p>
 </footer>
 </div>`;
 }

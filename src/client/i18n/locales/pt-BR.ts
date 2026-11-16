@@ -279,6 +279,9 @@ export const ptBR: Dictionary = {
   'view.minimap': 'Minimapa',
   'view.hideAttributes': 'Ocultar atributos',
   'view.attributesFollow': 'Mover atributos juntos',
+  'view.edgeLabelSize': 'Rótulos',
+  'view.edgeLabelSmaller': 'Rótulos menores',
+  'view.edgeLabelLarger': 'Rótulos maiores',
   'view.minimapOn': 'Mostrar minimapa',
   'view.minimapOff': 'Ocultar minimapa',
 
@@ -489,6 +492,7 @@ export const ptBR: Dictionary = {
   'home.fact.expiry.title': 'Guardado por 30 dias',
   'home.fact.expiry.body': 'Diagramas que ninguém abre por 30 dias são excluídos automaticamente, então salve um backup em JSON do que você quiser manter',
   'home.notation.title': 'Notação compatível',
+  'home.privacy': 'Política de privacidade',
   'home.notation.sub': 'Do ERD ao modelo relacional, ao diagrama IE e ao SQL, cada etapa usa sua notação conhecida',
   'home.notation.disjoint': 'Especialização disjunta',
   'home.notation.overlap': 'Especialização sobreposta',
@@ -615,8 +619,8 @@ export const ptBR: Dictionary = {
   'sqlView.uniqueLabel': 'UNIQUE na coluna {column} de {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': 'Sugestões',
-  'feedback.button': 'Opinião',
+  'feedback.title': "Conte o que está incomodando",
+  'feedback.button': 'Fale com o desenvolvedor',
   'feedback.placeholder': 'Deixe sua opinião',
   'feedback.send': 'Enviar',
   'feedback.sent': 'Enviado',

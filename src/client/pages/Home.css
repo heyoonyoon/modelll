@@ -575,3 +575,14 @@
 
 /* 옮기기 안내 창의 시연 영상 */
 .home-migrate-video { display: block; width: 100%; aspect-ratio: 1280 / 760; margin: 10px 0 0; border: 1px solid var(--h-line-strong); border-radius: 10px; background: var(--h-raised); object-fit: contain; }
+
+/* 맨 아래 개인정보처리방침 링크 */
+.home-legal { padding: 24px 16px 32px; text-align: center; font-size: 13px; }
+.home-legal a { color: var(--h-text-2); text-decoration: none; }
+.home-legal a:hover { text-decoration: underline; }
+
+/* 넓은 화면: 본문을 조금 좁히고 양옆 빈 곳에 세로 광고(160×600)를 고정한다. 기준 창 크기는 Home.tsx의 RAILS_QUERY */
+.home.has-rails { --h-max: 1040px; }
+.home-rail { position: fixed; top: 96px; z-index: 5; width: 160px; height: 600px; }
+.home-rail-left { left: calc(50% - var(--h-max) / 2 - 184px); }
+.home-rail-right { right: calc(50% - var(--h-max) / 2 - 184px); }

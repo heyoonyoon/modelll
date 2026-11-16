@@ -199,9 +199,11 @@ describe('Home', () => {
     expect(link.getAttribute('aria-label')).toContain('1,234');
   });
 
-  it('바닥글 없이 끝나고, 움직임을 쓸 수 없는 환경에서는 처음부터 완성된 화면을 보여 준다', () => {
+  it('바닥글은 개인정보처리방침 링크 하나뿐이고, 움직임을 쓸 수 없는 환경에서는 처음부터 완성된 화면을 보여 준다', () => {
     const { container } = render(<Home />);
-    expect(container.querySelector('footer')).toBeNull();
+    const footer = container.querySelector('footer');
+    expect(footer?.querySelectorAll('a')).toHaveLength(1);
+    expect(footer?.querySelector('a')?.getAttribute('href')).toBe('/privacy.html');
     // 화면에 들어와야 나타나는 구역이 감춰진 채로 남지 않는다
     const reveals = container.querySelectorAll('.home-reveal');
     expect(reveals.length).toBeGreaterThan(0);

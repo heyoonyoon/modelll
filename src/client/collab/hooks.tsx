@@ -3,6 +3,7 @@
  */
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ErdEdge, ErdNode, Peer, Presence } from '../../shared/types';
+import { getLabelSize } from '../../shared/ydoc';
 import { getMetaMap, getTitle } from './docOps';
 import type { ConnectionStatus, Room } from './room';
 
@@ -45,6 +46,20 @@ export function useTitle(): string {
     return () => meta.unobserve(update);
   }, [room]);
   return title;
+}
+
+/** 방 전체의 선 글자 크기 */
+export function useLabelSize(): number {
+  const room = useRoom();
+  const [size, setSize] = useState(() => getLabelSize(room.doc));
+  useEffect(() => {
+    const meta = getMetaMap(room.doc);
+    const update = () => setSize(getLabelSize(room.doc));
+    meta.observe(update);
+    update();
+    return () => meta.unobserve(update);
+  }, [room]);
+  return size;
 }
 
 function readPeers(room: Room): Peer[] {

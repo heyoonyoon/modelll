@@ -53,6 +53,8 @@ import { MAX_TELEMETRY_BYTES, TELEMETRY_PATH } from '../shared/telemetry';
 export interface HttpDeps extends McpDeps {
   /** 빌드된 클라이언트 폴더. 없어도 된다(그때는 API와 웹소켓만 동작). */
   staticDir: string;
+  /** 지난 버전의 화면 파일 보관함(assetArchive.ts). 지금 버전에 없는 /assets/ 파일을 여기서 찾는다 */
+  assetArchiveDir?: string;
   stats(): { rooms: number; connections: number };
   roomInfo(roomId: string): Promise<{ exists: boolean; clients: number }>;
   /** 서버가 떠 있던 시간(초) */
@@ -522,6 +524,17 @@ export function createApp(deps: HttpDeps): Express {
       },
     }),
   );
+
+  // 지금 버전에 없는 화면 파일은 지난 버전 보관함에서 찾는다(배포 전에 열어 둔 탭이 옛 파일을 요청한다)
+  if (deps.assetArchiveDir) {
+    app.use(
+      '/assets',
+      express.static(deps.assetArchiveDir, {
+        index: false,
+        setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'),
+      }),
+    );
+  }
 
   // /.well-known 아래는 프로그램이 읽는 자리다. MCP 클라이언트는 접속하기 전에 여기서 OAuth 설정을 찾는데,
   // index.html을 200으로 주면 그것을 JSON으로 읽으려다 실패한다. 실제 파일이 아니면 JSON 404로 답한다.

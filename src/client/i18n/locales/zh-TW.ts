@@ -278,6 +278,9 @@ export const zhTW: Dictionary = {
   'view.minimap': '小地圖',
   'view.hideAttributes': '隱藏屬性',
   'view.attributesFollow': '屬性隨之移動',
+  'view.edgeLabelSize': '連線文字',
+  'view.edgeLabelSmaller': '連線文字變小',
+  'view.edgeLabelLarger': '連線文字變大',
   'view.minimapOn': '顯示小地圖',
   'view.minimapOff': '隱藏小地圖',
 
@@ -488,6 +491,7 @@ export const zhTW: Dictionary = {
   'home.fact.expiry.title': '保留 30 天',
   'home.fact.expiry.body': '30 天內無人開啟的圖表會自動刪除，需要長期保留的圖請儲存為 JSON',
   'home.notation.title': '支援的表示法',
+  'home.privacy': '隱私權政策',
   'home.notation.sub': '從 ERD 到關聯模型、IE 圖和 SQL，每個階段都沿用熟悉的表示法',
   'home.notation.disjoint': '互斥特殊化',
   'home.notation.overlap': '可重疊特殊化',
@@ -614,8 +618,8 @@ export const zhTW: Dictionary = {
   'sqlView.uniqueLabel': '{table} 表格 {column} 欄位的 UNIQUE',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': '意見回饋',
-  'feedback.button': '回饋',
+  'feedback.title': "有什麼不方便，隨時告訴我們",
+  'feedback.button': '給開發者留言',
   'feedback.placeholder': '請留下您的意見',
   'feedback.send': '傳送',
   'feedback.sent': '已傳送',

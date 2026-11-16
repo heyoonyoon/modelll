@@ -12,7 +12,7 @@
 import * as Y from 'yjs';
 import { nanoid } from 'nanoid';
 import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId } from '../../shared/types';
-import { applyPatch, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode, toYMap } from '../../shared/ydoc';
+import { applyPatch, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode, toYMap, setLabelSize } from '../../shared/ydoc';
 import { presetText } from '../i18n';
 import { fitNodeSize } from '../text/measure';
 
@@ -138,6 +138,11 @@ export function replaceAll(doc: Y.Doc, nodes: ErdNode[], edges: ErdEdge[]): void
 
 export function setTitle(doc: Y.Doc, title: string): void {
   transact(doc, () => getMetaMap(doc).set('title', title));
+}
+
+/** 선 글자(카디널리티, 역할 이름) 크기. 방 전체에 적용되고 실행 취소할 수 있다 */
+export function setEdgeLabelSize(doc: Y.Doc, size: number): void {
+  transact(doc, () => setLabelSize(doc, size));
 }
 
 // ───────────── 순수 생성 함수(문서를 건드리지 않는다) ─────────────

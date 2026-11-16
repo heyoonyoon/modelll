@@ -8,7 +8,7 @@
 import { memo, useCallback, useMemo, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { computeEdgeGeometry, siblingInfo } from '../../shared/geometry';
 import type { ErdEdge, ErdNode } from '../../shared/types';
-import { useEdges, useNodeMap, useNodes, useRoom } from '../collab/hooks';
+import { useEdges, useLabelSize, useNodeMap, useNodes, useRoom } from '../collab/hooks';
 import { RemoteCursors, RemoteSelections, useBroadcastCursor } from '../presence/Presence';
 import { isHiddenNode, useAttrView } from '../state/attrView';
 import { useErdHighlight } from '../state/highlight';
@@ -45,6 +45,7 @@ interface EdgeViewProps {
   highlighted: boolean;
   related: boolean;
   dimmed: boolean;
+  labelSize: number;
 }
 
 /** 다른 pane이 건 강조(state/highlight.ts). 강조 대상 id 집합과, 강조가 걸려 있는지 */
@@ -54,13 +55,13 @@ function useRelated(): { related: ReadonlySet<string>; active: boolean } {
 }
 
 /** 엣지 좌표는 엣지나 양 끝 노드의 참조가 바뀔 때만 다시 계산한다. */
-const EdgeView = memo(function EdgeView({ edge, source, target, siblingIndex, siblingCount, pairCount, selected, hovered, highlighted, related, dimmed }: EdgeViewProps) {
+const EdgeView = memo(function EdgeView({ edge, source, target, siblingIndex, siblingCount, pairCount, selected, hovered, highlighted, related, dimmed, labelSize }: EdgeViewProps) {
   const geometry = useMemo(
     () => computeEdgeGeometry(edge, source, target, siblingIndex, siblingCount, pairCount),
     [edge, source, target, siblingIndex, siblingCount, pairCount],
   );
   return (
-    <EdgeShape edge={edge} geometry={geometry} selected={selected} hovered={hovered} highlighted={highlighted} related={related} dimmed={dimmed} />
+    <EdgeShape edge={edge} geometry={geometry} selected={selected} hovered={hovered} highlighted={highlighted} related={related} dimmed={dimmed} labelSize={labelSize} />
   );
 });
 
@@ -75,6 +76,7 @@ const EdgesLayer = memo(function EdgesLayer() {
   const highlighted = useMemo(() => new Set(highlightIds), [highlightIds]);
   const { related, active } = useRelated();
   const hideAttrs = useAttrView((s) => s.hidden);
+  const labelSize = useLabelSize();
   return (
     <g className="canvas-edges">
       {edges.map((e) => {
@@ -97,6 +99,7 @@ const EdgesLayer = memo(function EdgesLayer() {
             highlighted={highlighted.has(e.id)}
             related={related.has(e.id)}
             dimmed={active && !related.has(e.id)}
+            labelSize={labelSize}
           />
         );
       })}

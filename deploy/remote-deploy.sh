@@ -80,6 +80,12 @@ cmd_up() {
     docker compose --profile https rm --stop --force caddy >/dev/null 2>&1 || true
   fi
 
+  # 교체하기 전에 지금 돌고 있는 버전의 화면 파일을 보관함(데이터 볼륨)에 복사해 둔다.
+  # 배포 전에 열어 둔 탭이 나중에 옛 파일을 요청하면 새 서버가 여기서 찾아 준다(src/server/assetArchive.ts).
+  if [ -n "$(docker compose ps --status running -q app 2>/dev/null)" ]; then
+    docker compose exec -T app sh -c 'mkdir -p /data/assets-archive && cp -n /app/dist/client/assets/* /data/assets-archive/ 2>/dev/null; true' || true
+  fi
+
   docker compose up -d --remove-orphans
 
   # Caddyfile이 바뀌었을 수 있으니 다시 읽게 한다.

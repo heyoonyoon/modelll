@@ -75,6 +75,8 @@ const server = createErdServer({
   host,
   dataDir,
   staticDir: process.env.STATIC_DIR || undefined,
+  // 배포 뒤에도 옛 탭이 지난 버전의 화면 파일을 받을 수 있게 한다. ASSET_ARCHIVE=off 로 끈다
+  archiveAssets: !/^(off|0|false|no)$/i.test(process.env.ASSET_ARCHIVE ?? ''),
   maxClientsPerRoom: limitFromEnv('MAX_CLIENTS_PER_ROOM', 15) || undefined,
   maxConnectionsPerIp: limitFromEnv('MAX_CONNECTIONS_PER_IP', 5),
   roomCreateIntervalMs: limitFromEnv('ROOM_CREATE_INTERVAL_MS', 60_000),

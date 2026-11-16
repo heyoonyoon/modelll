@@ -14,6 +14,7 @@ import { noteCreated, track } from '../telemetry';
 import { LogoMark } from '../ui/LogoMark';
 import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
+import { HOME_RAILS_ENABLED, RailAd } from '../ads/AdSlot';
 import { HomeAi } from './HomeAi';
 import { HomeFacts } from './HomeFeatures';
 import { NewDiagramDialog } from './HomeNewDialog';
@@ -50,6 +51,21 @@ function GithubLink() {
   );
 }
 
+/** 양옆 광고(160×600)가 본문을 가리지 않고 들어가는 창 크기인지 */
+const RAILS_QUERY = '(min-width: 1440px) and (min-height: 760px)';
+function useWideForRails(): boolean {
+  const [wide, setWide] = useState(() => HOME_RAILS_ENABLED && typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(RAILS_QUERY).matches);
+  useEffect(() => {
+    if (!HOME_RAILS_ENABLED || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(RAILS_QUERY);
+    const update = () => setWide(mq.matches);
+    mq.addEventListener('change', update);
+    update();
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return wide;
+}
+
 export function Home() {
   const t = useT();
   const [joinValue, setJoinValue] = useState('');
@@ -60,6 +76,8 @@ export function Home() {
   // 열린 안내 창. 지금은 '기존 ERD 옮기기' 버튼만 연다
   const [newOpen, setNewOpen] = useState<null | 'migrate'>(null);
   const joinRef = useRef<HTMLInputElement>(null);
+  // 넓은 화면에서는 본문을 조금 좁히고 양옆에 광고를 세운다
+  const rails = useWideForRails();
   const joinId = useId();
   const joinErrorId = useId();
   const recentTitleId = useId();
@@ -133,7 +151,13 @@ export function Home() {
   };
 
   return (
-    <div className={newOpen ? 'home is-locked' : 'home'}>
+    <div className={`home${newOpen ? ' is-locked' : ''}${rails ? ' has-rails' : ''}`}>
+      {rails && (
+        <>
+          <RailAd side="left" />
+          <RailAd side="right" />
+        </>
+      )}
       <nav className="home-nav" aria-label={t('home.nav.label')}>
         <div className="home-nav-inner">
           <div className="home-nav-start">
@@ -295,6 +319,9 @@ export function Home() {
           </section>
         </div>
       </main>
+      <footer className="home-legal">
+        <a href="/privacy.html">{t('home.privacy')}</a>
+      </footer>
       {newOpen && <NewDiagramDialog start={newOpen} onClose={() => setNewOpen(null)} onBlank={createRoom} />}
       {/* 복사 결과를 알리는 알림. 방 화면에서는 상단 바가 그린다 */}
       <Toaster />

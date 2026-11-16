@@ -278,6 +278,9 @@ export const vi: Dictionary = {
   'view.minimap': 'Bản đồ thu nhỏ',
   'view.hideAttributes': 'Ẩn thuộc tính',
   'view.attributesFollow': 'Di chuyển cùng thuộc tính',
+  'view.edgeLabelSize': 'Nhãn',
+  'view.edgeLabelSmaller': 'Nhãn nhỏ hơn',
+  'view.edgeLabelLarger': 'Nhãn lớn hơn',
   'view.minimapOn': 'Hiện bản đồ thu nhỏ',
   'view.minimapOff': 'Ẩn bản đồ thu nhỏ',
 
@@ -488,6 +491,7 @@ export const vi: Dictionary = {
   'home.fact.expiry.title': 'Lưu giữ 30 ngày',
   'home.fact.expiry.body': 'Sơ đồ không ai mở trong 30 ngày sẽ tự động bị xóa, vì vậy hãy lưu bản sao lưu JSON cho những gì bạn muốn giữ',
   'home.notation.title': 'Ký hiệu được hỗ trợ',
+  'home.privacy': 'Chính sách quyền riêng tư',
   'home.notation.sub': 'Từ ERD đến mô hình quan hệ, sơ đồ IE và SQL, mỗi giai đoạn đều dùng ký hiệu quen thuộc của nó',
   'home.notation.disjoint': 'Chuyên biệt hóa rời nhau',
   'home.notation.overlap': 'Chuyên biệt hóa chồng lấp',
@@ -614,8 +618,8 @@ export const vi: Dictionary = {
   'sqlView.uniqueLabel': 'UNIQUE của cột {column} trong {table}',
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
-  'feedback.title': 'Góp ý',
-  'feedback.button': 'Góp ý',
+  'feedback.title': "Cứ thoải mái góp ý điều chưa tiện",
+  'feedback.button': 'Nhắn nhà phát triển',
   'feedback.placeholder': 'Hãy để lại ý kiến của bạn',
   'feedback.send': 'Gửi',
   'feedback.sent': 'Đã gửi',

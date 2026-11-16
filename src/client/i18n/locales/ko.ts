@@ -296,6 +296,8 @@ export const ko = {
   'view.snapOn': '정렬 붙기 켜기',
   'view.snapOff': '정렬 붙기 끄기',
   'view.minimap': '미니맵',
+  'view.hideAttributes': '속성 숨기기',
+  'view.attributesFollow': '속성 함께 이동',
   'view.minimapOn': '미니맵 켜기',
   'view.minimapOff': '미니맵 끄기',
 
@@ -640,6 +642,7 @@ export const ko = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': '건의사항',
+  'feedback.button': '의견 남기기',
   'feedback.placeholder': '의견을 남겨 주세요',
   'feedback.send': '보내기',
   'feedback.sent': '보냈습니다',

@@ -276,6 +276,8 @@ export const zhCN: Dictionary = {
   'view.snapOn': '开启对齐吸附',
   'view.snapOff': '关闭对齐吸附',
   'view.minimap': '小地图',
+  'view.hideAttributes': '隐藏属性',
+  'view.attributesFollow': '属性随之移动',
   'view.minimapOn': '显示小地图',
   'view.minimapOff': '隐藏小地图',
 
@@ -613,6 +615,7 @@ export const zhCN: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': '意见反馈',
+  'feedback.button': '反馈',
   'feedback.placeholder': '请留下您的意见',
   'feedback.send': '发送',
   'feedback.sent': '已发送',

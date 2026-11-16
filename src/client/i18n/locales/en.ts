@@ -276,6 +276,8 @@ export const en: Dictionary = {
   'view.snapOn': 'Turn on snapping',
   'view.snapOff': 'Turn off snapping',
   'view.minimap': 'Minimap',
+  'view.hideAttributes': 'Hide attributes',
+  'view.attributesFollow': 'Move attributes along',
   'view.minimapOn': 'Show minimap',
   'view.minimapOff': 'Hide minimap',
 
@@ -613,6 +615,7 @@ export const en: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Feedback',
+  'feedback.button': 'Feedback',
   'feedback.placeholder': 'Share your thoughts',
   'feedback.send': 'Send',
   'feedback.sent': 'Sent',

@@ -10,6 +10,7 @@ import { computeEdgeGeometry, siblingInfo } from '../../shared/geometry';
 import type { ErdEdge, ErdNode } from '../../shared/types';
 import { useEdges, useNodeMap, useNodes, useRoom } from '../collab/hooks';
 import { RemoteCursors, RemoteSelections, useBroadcastCursor } from '../presence/Presence';
+import { isHiddenNode, useAttrView } from '../state/attrView';
 import { useErdHighlight } from '../state/highlight';
 import { useUi } from '../state/ui';
 import { viewportTransform } from './coords';
@@ -73,12 +74,14 @@ const EdgesLayer = memo(function EdgesLayer() {
   const selected = useMemo(() => new Set(selection), [selection]);
   const highlighted = useMemo(() => new Set(highlightIds), [highlightIds]);
   const { related, active } = useRelated();
+  const hideAttrs = useAttrView((s) => s.hidden);
   return (
     <g className="canvas-edges">
       {edges.map((e) => {
         const source = nodeMap.get(e.source);
         const target = nodeMap.get(e.target);
         if (!source || !target) return null;
+        if (hideAttrs && (source.kind === 'attribute' || target.kind === 'attribute')) return null;
         const sib = siblings.get(e.id);
         return (
           <EdgeView
@@ -110,9 +113,10 @@ const NodesLayer = memo(function NodesLayer() {
   const selected = useMemo(() => new Set(selection), [selection]);
   const highlighted = useMemo(() => new Set(highlightIds), [highlightIds]);
   const { related, active } = useRelated();
+  const hideAttrs = useAttrView((s) => s.hidden);
   return (
     <g className="canvas-nodes">
-      {nodes.map((n) => (
+      {nodes.map((n) => isHiddenNode(n, hideAttrs) ? null : (
         // NodeShape는 memo라서 node 참조와 아래 원시값이 그대로면 다시 그리지 않는다
         <NodeShape
           key={n.id}

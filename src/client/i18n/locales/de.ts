@@ -278,6 +278,8 @@ export const de: Dictionary = {
   'view.snapOn': 'Einrasten aktivieren',
   'view.snapOff': 'Einrasten deaktivieren',
   'view.minimap': 'Minimap',
+  'view.hideAttributes': 'Attribute ausblenden',
+  'view.attributesFollow': 'Attribute mitbewegen',
   'view.minimapOn': 'Minimap einblenden',
   'view.minimapOff': 'Minimap ausblenden',
 
@@ -615,6 +617,7 @@ export const de: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Feedback',
+  'feedback.button': 'Feedback',
   'feedback.placeholder': 'Teilen Sie uns Ihre Meinung mit',
   'feedback.send': 'Senden',
   'feedback.sent': 'Gesendet',

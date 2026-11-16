@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FEEDBACK_MAX, FeedbackWidget, offsetAboveMinimap } from './FeedbackWidget';
+import { FEEDBACK_MAX, FeedbackWidget } from './FeedbackWidget';
 
 function reply(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -143,15 +143,3 @@ describe('FeedbackWidget', () => {
   });
 });
 
-describe('offsetAboveMinimap', () => {
-  const rect = (x: number, y: number, w: number, h: number) => ({ left: x, top: y, right: x + w, bottom: y + h, width: w, height: h }) as DOMRect;
-
-  it('오른쪽 아래 구석의 미니맵 위로 올린다', () => {
-    expect(offsetAboveMinimap([rect(1274, 808, 114, 80)], 1400, 900)).toEqual({ right: 14, bottom: 100 });
-  });
-
-  it('구석에서 떨어진 미니맵은 무시한다', () => {
-    expect(offsetAboveMinimap([rect(643, 808, 114, 80)], 1400, 900)).toBeNull();
-    expect(offsetAboveMinimap([], 1400, 900)).toBeNull();
-  });
-});

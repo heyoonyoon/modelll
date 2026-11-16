@@ -29,6 +29,7 @@ import {
   safeFilename,
 } from '../export/exporters';
 import { APP_NAME, useT, type MessageKey } from '../i18n';
+import { FeedbackWidget } from './FeedbackWidget';
 import { LanguageSelect } from '../i18n/LanguageSelect';
 import { UserAvatars } from '../presence/Presence';
 import { navigate, roomUrl } from '../router';
@@ -830,6 +831,7 @@ export function TopBar({ paneMenu }: { paneMenu?: ReactNode } = {}) {
       </div>
 
       <div className="topbar-group topbar-right">
+        <FeedbackWidget placement="topbar" />
         {paneMenu && (
           <>
             {paneMenu}

@@ -278,6 +278,8 @@ export const fr: Dictionary = {
   'view.snapOn': 'Activer le magnétisme',
   'view.snapOff': 'Désactiver le magnétisme',
   'view.minimap': 'Mini-carte',
+  'view.hideAttributes': 'Masquer les attributs',
+  'view.attributesFollow': 'Déplacer les attributs avec',
   'view.minimapOn': 'Afficher la mini-carte',
   'view.minimapOff': 'Masquer la mini-carte',
 
@@ -615,6 +617,7 @@ export const fr: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Suggestions',
+  'feedback.button': 'Avis',
   'feedback.placeholder': 'Donnez-nous votre avis',
   'feedback.send': 'Envoyer',
   'feedback.sent': 'Envoyé',

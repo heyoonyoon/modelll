@@ -91,6 +91,7 @@ section:first-of-type { margin-top: 8px; }
 .chart .desc { font-size: 12px; color: var(--faint); margin: 2px 0 8px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
 .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+.legend i.dash { width: 12px; height: 0; border-radius: 0; border-top: 2px dashed #a3a3a3; vertical-align: 2px; }
 .chart svg { display: block; width: 100%; height: auto; }
 .hit { cursor: default; }
 .hit:hover { fill: rgba(23, 23, 23, 0.04); }
@@ -287,6 +288,44 @@ function line(rows, se, wide) {
   return out + xTicks(rows, W, H, L, cw) + '</svg>';
 }
 
+/** 시간대별(0~23시) 막대. 오늘은 막대, 비교 날(어제)은 회색 점선으로 겹친다. 아직 오지 않은 시각은 비운다 */
+function hourChart(title, desc, cur, prev, get, cls, nowHour) {
+  var color = COLORS[cls];
+  var W = 600, H = 170, L = 36, R = 6, T = 10, B = 20, n = 24, max = 0;
+  var a = [], b = [];
+  for (var h = 0; h < n; h++) { a.push(get(cur, h)); b.push(prev ? get(prev, h) : 0); max = Math.max(max, a[h], b[h]); }
+  var top = niceTop(max);
+  var cw = (W - L - R) / n, bw = Math.max(1, Math.min(16, cw * 0.66));
+  var out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + axis(W, H, L, R, T, B, top);
+  for (h = 0; h < n; h++) {
+    if (nowHour !== null && h > nowHour) continue;
+    var v = a[h], bh = (H - T - B) * v / top;
+    if (v > 0) out += '<rect x="' + (L + cw * h + (cw - bw) / 2).toFixed(1) + '" y="' + (H - B - bh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, bh).toFixed(1) + '" rx="2" fill="' + (h === nowHour ? color + 'aa' : color) + '"/>';
+  }
+  if (prev) {
+    var d = b.map(function (v, i) { return (i ? 'L' : 'M') + (L + cw * i + cw / 2).toFixed(1) + ' ' + (T + (H - T - B) * (1 - v / top)).toFixed(1); }).join(' ');
+    out += '<path d="' + d + '" fill="none" stroke="#a3a3a3" stroke-width="1.5" stroke-dasharray="3 3"/>';
+  }
+  for (h = 0; h < n; h++) {
+    var tip = h + '시~' + (h + 1) + '시\n오늘 ' + (nowHour !== null && h > nowHour ? '–' : fmt(a[h])) + (prev ? '\n어제 ' + fmt(b[h]) : '');
+    out += '<rect x="' + (L + cw * h).toFixed(1) + '" y="' + T + '" width="' + cw.toFixed(1) + '" height="' + (H - T - B) + '" fill="transparent" class="hit" data-tip="' + esc(tip) + '"></rect>';
+  }
+  [0, 6, 12, 18, 23].forEach(function (h) { out += '<text x="' + (L + cw * h + cw / 2).toFixed(1) + '" y="' + (H - 5) + '" font-size="10" fill="#8f8f8f" text-anchor="middle">' + h + '시</text>'; });
+  out += '</svg>';
+  var legend = '<div class="legend"><span><i class="sw-' + cls + '"></i>오늘</span>' + (prev ? '<span><i class="dash"></i>어제</span>' : '') + '</div>';
+  return '<div class="chart"><div class="head"><h3>' + esc(title) + '</h3></div><p class="desc">' + esc(desc) + '</p>' + legend + out + '</div>';
+}
+function renderHourly(s) {
+  var t = s.today, y = s.yesterday;
+  var nowHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(new Date(s.now))) % 24;
+  var hasAny = false;
+  for (var h = 0; h < 24 && !hasAny; h++) if (U(t, 'h:users:' + h) || U(y, 'h:users:' + h)) hasAny = true;
+  $('hourly').innerHTML = !hasAny ? '<p class="empty">이 판부터 시간대별로 셉니다. 접속이 생기면 여기에 쌓입니다</p>' :
+    hourChart('접속자', '그 시간대에 방에 연결돼 있던 고유 브라우저', t, y, function (r, h) { return U(r, 'h:users:' + h); }, 'aqua', nowHour) +
+    hourChart('최대 동시 접속', '그 시간대 안에서 같은 순간 연결된 고유 브라우저의 최댓값', t, y, function (r, h) { return C(r, 'h:peak:' + h); }, 'blue', nowHour) +
+    hourChart('편집 횟수', '그 시간대에 보낸 Yjs 업데이트 수', t, y, function (r, h) { return C(r, 'h:edits:' + h); }, 'orange', nowHour);
+}
+
 function legendOf(series) { return series.length > 1 ? '<div class="legend">' + series.map(function (s) { return '<span><i class="sw-' + esc(s.cls) + '"></i>' + esc(s.label) + '</span>'; }).join('') + '</div>' : ''; }
 function chartBox(title, desc, svg, totalText, cls, series) {
   return '<div class="chart' + (cls ? ' ' + cls : '') + '"><div class="head"><h3>' + esc(title) + '</h3>' + (totalText ? '<span class="total">' + esc(totalText) + '</span>' : '') + '</div><p class="desc">' + esc(desc) + '</p>' + legendOf(series || []) + svg + '</div>';
@@ -352,11 +391,12 @@ function renderLiveList(live) {
   if (!el) return;
   var list = live.list || [];
   var nowMs = live.now ? Date.parse(live.now) : Date.now();
-  $('live-count').textContent = list.length ? list.length + '명' : '';
+  var users = typeof live.users === 'number' ? live.users : list.length;
+  $('live-count').textContent = list.length ? users + '명' + (list.length !== users ? ', 방 연결 ' + list.length + '개' : '') : '';
   if (!list.length) { el.innerHTML = '<p class="empty">지금 접속한 사람이 없습니다</p>'; return; }
-  el.innerHTML = '<div class="scroll"><table class="live-list"><tr><th>나라</th><th>기기</th><th>언어</th><th class="num">접속 시간</th><th>방</th><th>신규/재방문</th></tr>' +
+  el.innerHTML = '<div class="scroll"><table class="live-list"><tr><th>사람</th><th>이름</th><th>나라</th><th>기기</th><th>언어</th><th class="num">접속 시간</th><th>방</th><th>신규/재방문</th></tr>' +
     list.map(function (r) {
-      return '<tr><td>' + countryLabel(r.country) + '</td><td>' + (r.device === 'm' ? '모바일' : '데스크톱') + '</td><td>' + esc(r.lang || '–') + '</td>' +
+      return '<tr><td><code>' + esc(r.who || '?') + '</code></td><td>' + (r.name ? esc(r.name) : '<span class="cc">–</span>') + '</td><td>' + countryLabel(r.country) + '</td><td>' + (r.device === 'm' ? '모바일' : '데스크톱') + '</td><td>' + esc(r.lang || '–') + '</td>' +
         '<td class="num">' + esc(since(r.since, nowMs)) + '</td><td><code>' + esc(r.room) + '</code>' + (r.tabs > 1 ? ' <span class="cc">탭 ' + esc(r.tabs) + '개</span>' : '') + '</td>' +
         '<td>' + (r.isNew ? '<span class="tag new">신규</span>' : '<span class="tag">재방문</span>') + '</td></tr>';
     }).join('') + '</table></div>';
@@ -627,7 +667,7 @@ function loadAll() {
   return Promise.all([get('/api/summary'), get('/api/daily' + (state.days ? '?days=' + state.days : '')), get('/api/anomalies'), loadInbox(0)]).then(function (res) {
     var s = res[0], rows = res[1].rows;
     state.summary = s; state.rows = rows;
-    renderKpis(s); renderLive(s.live); renderMain(rows); renderRetention(s); renderCountries(s); renderAnomalies(res[2].rows);
+    renderKpis(s); renderHourly(s); renderLive(s.live); renderMain(rows); renderRetention(s); renderCountries(s); renderAnomalies(res[2].rows);
     renderToday(s); renderTotals(s); renderTrends(rows); renderFunnel(rows); renderUsage(rows); renderDist(rows);
     var note = rows.length ? rows[0].day + ' ~ ' + rows[rows.length - 1].day + ' (' + rows.length + '일)' : '';
     $('period-note').textContent = note; $('period-note2').textContent = note;
@@ -693,13 +733,14 @@ ${swatches}
 ${heat}</style></head>
 <body>
 <header class="top"><h1>modelll 관리자</h1><span class="badge">SSH 터널 전용</span>
-<nav><a href="#sec-kpi">지표</a><a href="#sec-trend">추이</a><a href="#sec-retention">리텐션</a><a href="#sec-country">나라</a><a href="#sec-feedback">의견함</a><a href="#sec-anomaly">이상 발송</a><a href="#sec-more">상세</a></nav>
+<nav><a href="#sec-kpi">지표</a><a href="#sec-hourly">시간대</a><a href="#sec-trend">추이</a><a href="#sec-retention">리텐션</a><a href="#sec-country">나라</a><a href="#sec-feedback">의견함</a><a href="#sec-anomaly">이상 발송</a><a href="#sec-more">상세</a></nav>
 <span class="grow"></span><span class="updated" id="updated"></span>
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${escapeHtml(opts.csrf)}"><button class="btn" type="submit">로그아웃</button></form></header>
 <main>
 <p class="err" id="error" role="alert"></p>
-<section id="sec-live"><div class="sec-head"><h2>지금 접속 중</h2><p id="live-count"></p><p>10초마다 갱신합니다. 같은 브라우저가 같은 방에 연 탭은 한 줄입니다</p></div><div id="live-list"></div></section>
+<section id="sec-live"><div class="sec-head"><h2>지금 접속 중</h2><p id="live-count"></p><p>10초마다 갱신합니다. 한 줄은 한 사람이 연 방 하나이고, 사람 칸이 같으면 같은 브라우저입니다</p></div><div id="live-list"></div></section>
 <section id="sec-kpi"><div class="sec-head"><h2>핵심 지표</h2><p>오늘은 Asia/Seoul 자정부터입니다. 현재 접속자는 10초마다 갱신합니다</p></div><div class="kpis" id="kpis"></div></section>
+<section id="sec-hourly"><div class="sec-head"><h2>시간대별 추이</h2><p>오늘(Asia/Seoul)을 한 시간 단위로 보고, 점선은 어제 같은 시간입니다</p></div><div class="charts three" id="hourly"></div></section>
 <section id="sec-trend"><div class="sec-head"><h2>추이</h2><p id="period-note"></p><span class="grow"></span>
 <div class="segmented" id="period" role="group" aria-label="기간"><button type="button" data-v="7">7일</button><button type="button" data-v="30" class="on">30일</button><button type="button" data-v="90">90일</button><button type="button" data-v="0">전체</button></div></div>
 <div class="charts" id="main-charts"></div></section>

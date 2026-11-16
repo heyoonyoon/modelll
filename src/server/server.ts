@@ -232,6 +232,7 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
             const sizes = hub.roomSizes();
             return { connections: sizes.reduce((a, b) => a + b, 0), openRooms: sizes.length };
           },
+          nameOf: (key, roomId) => hub.nameOf(key, roomId),
           passwordHash: opts.adminPasswordHash,
           feedback,
           log,

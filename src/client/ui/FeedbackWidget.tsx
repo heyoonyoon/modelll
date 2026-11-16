@@ -1,8 +1,8 @@
 /**
- * 모든 화면 오른쪽 아래의 건의사항 버튼과 입력 창. 글은 POST /api/feedback 으로 우리 서버에만 보낸다.
+ * 건의사항 버튼과 입력 창. 첫 화면에서는 오른쪽 아래에 떠 있고, 방 화면에서는 상단 바에 놓인다. 글은 POST /api/feedback 으로 우리 서버에만 보낸다.
  * 보낸 글은 화면에 HTML로 그리지 않는다(입력 칸의 값으로만 다룬다).
  */
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { getLocale, useT } from '../i18n';
 import './FeedbackWidget.css';
 
@@ -25,60 +25,7 @@ function ChatIcon() {
   );
 }
 
-/** 방 화면에서 버튼이 놓이는 기본 자리(오른쪽, 아래 여백과 크기, px). FeedbackWidget.css 의 data-place='room' 과 같다 */
-const ROOM_SPOT = { right: 14, bottom: 16, size: 36 };
-
-interface Offset {
-  right: number;
-  bottom: number;
-}
-
-/** 버튼 자리를 미니맵이 차지하고 있으면 미니맵 바로 위로 올릴 위치. 겹치지 않으면 null */
-export function offsetAboveMinimap(minimaps: DOMRect[], vw: number, vh: number): Offset | null {
-  const { right, bottom, size } = ROOM_SPOT;
-  const zone = { left: vw - right - size - 8, top: vh - bottom - size - 8 };
-  let best: Offset | null = null;
-  for (const r of minimaps) {
-    if (r.width === 0 || r.height === 0) continue;
-    if (r.right <= zone.left || r.bottom <= zone.top || r.left >= vw || r.top >= vh) continue;
-    const next = { right: Math.max(right, Math.round(vw - r.right)), bottom: Math.round(vh - r.top + 8) };
-    if (!best || next.bottom > best.bottom) best = next;
-  }
-  return best;
-}
-
-function useMinimapOffset(enabled: boolean): Offset | null {
-  const [offset, setOffset] = useState<Offset | null>(null);
-  useEffect(() => {
-    if (!enabled) {
-      setOffset(null);
-      return;
-    }
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const rects = Array.from(document.querySelectorAll('[data-testid="minimap"]'), (el) => el.getBoundingClientRect());
-      const next = offsetAboveMinimap(rects, window.innerWidth, window.innerHeight);
-      setOffset((cur) => (cur?.right === next?.right && cur?.bottom === next?.bottom ? cur : next));
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
-    };
-    // 미니맵은 켜고 끄기, pane 옮기기, 창 크기 바꾸기로 나타나거나 움직인다
-    const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-minimap', 'data-size'] });
-    window.addEventListener('resize', schedule);
-    schedule();
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', schedule);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [enabled]);
-  return offset;
-}
-
-export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 'room' }) {
+export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 'topbar' }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -90,7 +37,6 @@ export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 'r
   const sending = useRef(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleId = useId();
-  const lift = useMinimapOffset(placement === 'room');
 
   const close = useCallback((refocus = true) => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -181,7 +127,6 @@ export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 'r
       data-place={placement}
       data-open={open || undefined}
       data-testid="feedback"
-      style={lift ? ({ '--fb-right': `${lift.right}px`, '--fb-bottom': `${lift.bottom}px` } as CSSProperties) : undefined}
     >
       {open && (
         <div
@@ -234,18 +179,23 @@ export function FeedbackWidget({ placement = 'home' }: { placement?: 'home' | 'r
       <button
         ref={buttonRef}
         type="button"
-        className="fb-btn"
+        className={placement === 'topbar' ? `btn btn-ghost fb-top-btn${open ? ' is-active' : ''}` : 'fb-btn'}
         data-testid="feedback-button"
         aria-label={label}
+        title={placement === 'topbar' ? label : undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => (open ? close(true) : (setStatus('idle'), setOpen(true)))}
       >
         <ChatIcon />
-        {!open && (
-          <span className="fb-tip" aria-hidden="true">
-            {label}
-          </span>
+        {placement === 'topbar' ? (
+          <span className="topbar-label">{t('feedback.button')}</span>
+        ) : (
+          !open && (
+            <span className="fb-tip" aria-hidden="true">
+              {label}
+            </span>
+          )
         )}
       </button>
     </div>

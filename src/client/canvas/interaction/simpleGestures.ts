@@ -4,6 +4,7 @@
 import { presetOfTool, type Point, type PresetId } from '../../../shared/types';
 import { addNode, createNodeFromPreset } from '../../collab/docOps';
 import { growToFit } from '../../text/measure';
+import { visibleGraph } from '../../state/attrView';
 import { ui } from '../../state/ui';
 import { panBy } from '../ViewportControls';
 import { isAdditive, worldOf, type Gesture, type GestureCtx, type PointerSnap } from './gesture';
@@ -22,7 +23,8 @@ export function startMarquee(ctx: GestureCtx, down: PointerSnap): Gesture {
   const update = (p: PointerSnap): void => {
     const rect = rectFromPoints(startWorld, worldOf(ctx, p));
     ui().setMarquee(rect);
-    ui().setSelection(marqueeSelection(rect, room.nodes.getSnapshot(), room.edges.getSnapshot(), base));
+    const { nodes, edges } = visibleGraph(room.nodes.getSnapshot(), room.edges.getSnapshot());
+    ui().setSelection(marqueeSelection(rect, nodes, edges, base));
   };
 
   return {

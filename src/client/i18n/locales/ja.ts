@@ -276,6 +276,8 @@ export const ja: Dictionary = {
   'view.snapOn': 'スナップをオン',
   'view.snapOff': 'スナップをオフ',
   'view.minimap': 'ミニマップ',
+  'view.hideAttributes': '属性を隠す',
+  'view.attributesFollow': '属性も一緒に移動',
   'view.minimapOn': 'ミニマップを表示',
   'view.minimapOff': 'ミニマップを非表示',
 
@@ -613,6 +615,7 @@ export const ja: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'ご意見',
+  'feedback.button': 'ご意見',
   'feedback.placeholder': 'ご意見をお寄せください',
   'feedback.send': '送信',
   'feedback.sent': '送信しました',

@@ -13,7 +13,8 @@ export function App() {
   return (
     <>
       {route.page === 'room' ? <RoomPage key={route.roomId} roomId={route.roomId} /> : <Home />}
-      <FeedbackWidget placement={isRoom ? 'room' : 'home'} />
+      {/* 방 화면에서는 상단 바(TopBar)에 놓인다 */}
+      {!isRoom && <FeedbackWidget placement="home" />}
     </>
   );
 }

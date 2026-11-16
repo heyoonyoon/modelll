@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useEdges, useNodes, useTitle } from "../collab/hooks";
 import { tSentence, useT } from "../i18n";
+import { attrView, useAttrView } from "../state/attrView";
 import { ui, useUi } from "../state/ui";
 import {
   countIssues,
@@ -65,6 +66,21 @@ const MINIMAP_ICON = (
       fill="currentColor"
       stroke="none"
     />
+  </RowIcon>
+);
+
+const ATTR_HIDE_ICON = (
+  <RowIcon>
+    <ellipse cx="8" cy="8" rx="6" ry="3.8" />
+    <path d="m2.5 13.5 11-11" />
+  </RowIcon>
+);
+const ATTR_FOLLOW_ICON = (
+  <RowIcon>
+    <rect x="1.5" y="6" width="6" height="4" rx="0.5" />
+    <ellipse cx="12" cy="4" rx="2.5" ry="1.6" />
+    <ellipse cx="12" cy="12" rx="2.5" ry="1.6" />
+    <path d="M7.5 7 9.6 4.8M7.5 9l2.1 2.2" />
   </RowIcon>
 );
 
@@ -267,6 +283,8 @@ export function DiagramInfo() {
   const showGrid = useUi((s) => s.showGrid);
   const snapEnabled = useUi((s) => s.snapEnabled);
   const minimapOpen = useUi((s) => s.panels.minimap);
+  const hideAttrs = useAttrView((s) => s.hidden);
+  const followAttrs = useAttrView((s) => s.follow);
   const name = title || t("doc.untitled");
   return (
     <aside
@@ -317,6 +335,20 @@ export function DiagramInfo() {
               testId="toggle-snap"
               on={snapEnabled}
               onChange={(on) => ui().setSnapEnabled(on)}
+            />
+            <SwitchRow
+              icon={ATTR_HIDE_ICON}
+              label={t("view.hideAttributes")}
+              testId="toggle-hide-attrs"
+              on={hideAttrs}
+              onChange={(on) => attrView().setHidden(on)}
+            />
+            <SwitchRow
+              icon={ATTR_FOLLOW_ICON}
+              label={t("view.attributesFollow")}
+              testId="toggle-attrs-follow"
+              on={followAttrs}
+              onChange={(on) => attrView().setFollow(on)}
             />
             <SwitchRow
               icon={MINIMAP_ICON}

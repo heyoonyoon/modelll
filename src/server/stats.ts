@@ -38,6 +38,10 @@ const SEOUL_OFFSET_MS = 9 * 3_600_000;
 export function dayNumber(ms: number): number {
   return Math.floor((ms + SEOUL_OFFSET_MS) / DAY_MS);
 }
+/** Asia/Seoul 기준 몇 시인지(0~23) */
+export function hourOf(ms: number): number {
+  return Math.floor((((ms + SEOUL_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS / 3_600_000);
+}
 export function dayLabel(day: number): string {
   return new Date(day * DAY_MS).toISOString().slice(0, 10);
 }
@@ -173,6 +177,10 @@ interface LiveConn {
 
 /** 실시간 목록의 한 줄: 같은 브라우저가 같은 방에 연 탭은 한 줄로 묶는다 */
 export interface LiveRow {
+  /** 같은 사람(브라우저)을 알아보는 짧은 표시. 익명 ID 해시 앞 4자, 익명 ID가 없으면 '?' */
+  who: string;
+  /** 방에 알린 표시 이름(메모리에서만 읽고 저장하지 않는다). 없으면 null */
+  name: string | null;
   country: string;
   device: 'm' | 'd';
   lang: string | null;
@@ -303,6 +311,7 @@ export class StatsCollector {
     if (this.timer) return;
     this.timer = setInterval(() => {
       this.rollover(this.now());
+      this.tickHour();
       void this.flush();
     }, this.flushIntervalMs);
     this.timer.unref();
@@ -344,6 +353,10 @@ export class StatsCollector {
     this.addSet('r:open', room);
     if (inRoom.size >= 2) this.addSet('r:collab', room);
     if (this.userConns.size > this.state.peak) this.state.peak = this.userConns.size;
+    const h = hourOf(now);
+    this.count(`h:conns:${h}`);
+    this.addSet(`h:users:${h}`, userKey);
+    this.hourPeak(h);
   }
 
   wsClose(key: object, code: number): void {
@@ -375,8 +388,10 @@ export class StatsCollector {
 
   /** 접속자가 방 문서를 고쳤다(Yjs 업데이트 하나) */
   edit(roomId: string): void {
-    this.rollover(this.now());
+    const now = this.now();
+    this.rollover(now);
     this.count('edits');
+    this.count(`h:edits:${hourOf(now)}`);
     this.addSet('r:active', this.hashRoom(roomId));
   }
 
@@ -557,17 +572,18 @@ export class StatsCollector {
   }
 
   /** 지금 연결된 브라우저 목록(같은 브라우저와 같은 방의 탭은 한 줄). 오래 연결된 순 */
-  liveList(): LiveRow[] {
+  liveList(nameOf?: (key: object, roomId: string) => string | null): LiveRow[] {
     const rows = new Map<string, LiveRow>();
-    for (const c of this.live.values()) {
+    for (const [key, c] of this.live) {
       const k = `${c.userKey}|${c.roomId}`;
       const row = rows.get(k);
       if (row) {
         row.tabs += 1;
+        if (!row.name && nameOf) row.name = nameOf(key, c.roomId);
         row.since = Math.min(row.since, c.start);
         continue;
       }
-      rows.set(k, { country: c.country, device: c.device, lang: c.lang, since: c.start, room: this.hashRoom(c.roomId).slice(0, 6), isNew: c.isNew, tabs: 1 });
+      rows.set(k, { who: c.userKey.startsWith('#') ? '?' : c.userKey.slice(0, 4), name: nameOf ? nameOf(key, c.roomId) : null, country: c.country, device: c.device, lang: c.lang, since: c.start, room: this.hashRoom(c.roomId).slice(0, 6), isNew: c.isNew, tabs: 1 });
     }
     return [...rows.values()].sort((a, b) => a.since - b.since);
   }
@@ -715,6 +731,46 @@ export class StatsCollector {
     this.roomHashes.clear();
     for (const [h, e] of this.rooms) if (e[1] < day - ROOM_KEEP_DAYS) this.rooms.delete(h);
     this.roomsDirty = true;
+    this.carryOverLive(day);
+  }
+
+  /**
+   * 자정을 넘어 연결을 이어 가는 사람과 방을 새 날의 방문자와 열린 방으로 센다.
+   * 다시 온 것은 아니므로 사용자 기록(방문일, 재방문 표시)은 건드리지 않는다. 그 사람이 오늘 다시 접속하면 그때 재방문으로 센다.
+   */
+  private carryOverLive(day: number): void {
+    const users = new Map<string, string>();
+    const rooms = new Set<string>();
+    for (const c of this.live.values()) {
+      rooms.add(c.roomId);
+      if (!c.userKey.startsWith('#')) users.set(c.userKey, c.country);
+    }
+    for (const [user, country] of users) {
+      this.addSet('visitors', user);
+      this.addSet('app', user);
+      this.addCountry(country, user);
+    }
+    for (const roomId of rooms) {
+      const room = this.hashRoom(roomId);
+      const e = this.rooms.get(room);
+      if (e && e[1] < day) e[1] = day;
+      this.addSet('r:open', room);
+    }
+  }
+
+  /** 지금 시간대의 최대 동시 접속을 올린다 */
+  private hourPeak(h: number): void {
+    const key = `h:peak:${h}`;
+    if (this.userConns.size > (this.state.counts.get(key) ?? 0)) this.state.counts.set(key, this.userConns.size);
+  }
+
+  /** 시간이 바뀐 뒤에도 연결을 이어 가는 사람을 그 시간대의 접속자로 센다(주기마다 부른다) */
+  tickHour(): void {
+    const now = this.now();
+    this.rollover(now);
+    const h = hourOf(now);
+    for (const userKey of this.userConns.keys()) this.addSet(`h:users:${h}`, userKey);
+    this.hourPeak(h);
   }
 
   private count(key: string, n = 1): void {

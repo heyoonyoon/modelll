@@ -276,6 +276,8 @@ export const vi: Dictionary = {
   'view.snapOn': 'Bật bắt dính căn chỉnh',
   'view.snapOff': 'Tắt bắt dính căn chỉnh',
   'view.minimap': 'Bản đồ thu nhỏ',
+  'view.hideAttributes': 'Ẩn thuộc tính',
+  'view.attributesFollow': 'Di chuyển cùng thuộc tính',
   'view.minimapOn': 'Hiện bản đồ thu nhỏ',
   'view.minimapOff': 'Ẩn bản đồ thu nhỏ',
 
@@ -613,6 +615,7 @@ export const vi: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Góp ý',
+  'feedback.button': 'Góp ý',
   'feedback.placeholder': 'Hãy để lại ý kiến của bạn',
   'feedback.send': 'Gửi',
   'feedback.sent': 'Đã gửi',

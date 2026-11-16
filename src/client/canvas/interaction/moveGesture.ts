@@ -4,6 +4,7 @@
 import { nodeRect, rectsIntersect, unionBounds } from '../../../shared/geometry';
 import type { Point, Rect } from '../../../shared/types';
 import { updateNodes } from '../../collab/docOps';
+import { attachedAttributes, attrView, isHiddenNode } from '../../state/attrView';
 import { ui } from '../../state/ui';
 import { visibleWorldRect } from '../coords';
 import { computeSnap } from '../snap';
@@ -48,14 +49,23 @@ export function startMove(ctx: GestureCtx, down: PointerSnap, nodeId: string): G
       const n = room.nodes.get(id);
       if (n) origins.set(id, nodeRect(n));
     }
+    // 맞춤은 직접 고른 도형의 테두리로 계산한다(따라오는 속성까지 넣으면 엉뚱한 곳에 붙는다)
     const bounds = unionBounds(Array.from(origins.values()));
     if (!bounds) return false;
+    const all = room.nodes.getSnapshot();
+    const view = attrView();
+    if (view.follow) {
+      for (const id of attachedAttributes(ui().selection, all, room.edges.getSnapshot())) {
+        const n = room.nodes.get(id);
+        if (n) origins.set(id, nodeRect(n));
+      }
+    }
     // 화면에 보이는 도형에만 붙는다(멀리 있는 도형에 붙으면 이유를 알 수 없다)
     const u = ui();
     const visible = u.canvasSize.w > 0 ? visibleWorldRect(u.viewport, u.canvasSize) : null;
     const others: Rect[] = [];
-    for (const n of room.nodes.getSnapshot()) {
-      if (origins.has(n.id)) continue;
+    for (const n of all) {
+      if (origins.has(n.id) || isHiddenNode(n, view.hidden)) continue;
       const r = nodeRect(n);
       if (!visible || rectsIntersect(visible, r)) others.push(r);
     }

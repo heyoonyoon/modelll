@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { StatsCollector, closeKind, dayLabel, dayNumber, isAbnormalClose, isBot, normalizeDomain } from './stats';
+import { StatsCollector, closeKind, dayLabel, hourOf, dayNumber, isAbnormalClose, isBot, normalizeDomain } from './stats';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const id = (n: number) => n.toString(16).padStart(32, '0');
@@ -166,9 +166,59 @@ describe('서비스 지표 모으기', () => {
     expect(list[0].room).not.toContain('room1');
     expect(list[1]).toMatchObject({ country: 'US', device: 'd', lang: 'en', tabs: 1 });
     expect(list[0].since).toBeLessThan(list[1].since);
+    expect(list[0].who).toMatch(/^[0-9a-zA-Z_-]{4}$/);
+    expect(list[0].who).not.toBe(list[1].who);
+    expect(list[0].name).toBeNull();
+    // 이름은 방에 알린 awareness에서 읽는다. 첫 탭에 이름이 없으면 같은 줄의 다른 탭에서 찾는다
+    const named = s.liveList((key, roomId) => (key === a2 && roomId === 'room1' ? '희윤' : null));
+    expect(named[0].name).toBe('희윤');
+    expect(named[1].name).toBeNull();
     s.wsClose(a1, 1000);
     s.wsClose(a2, 1000);
     expect(s.liveList()).toHaveLength(1);
+    await s.stop();
+  });
+
+  it('자정을 넘어 연결을 이어 가는 사람과 방은 새 날의 방문자와 열린 방으로 센다(신규나 재방문 표시는 붙이지 않는다)', async () => {
+    clock = Date.parse('2026-11-13T14:50:00Z'); // 서울 23:50
+    const s = make();
+    await s.init();
+    s.wsOpen({}, 'room1', id(1), UA, 'KR');
+    clock = Date.parse('2026-11-13T15:10:00Z'); // 서울 다음 날 00:10
+    const t = s.today();
+    expect(t.day).toBe('2026-11-14');
+    expect(t.u.visitors).toBe(1);
+    expect(t.u.app).toBe(1);
+    expect(t.u['cc:KR']).toBe(1);
+    expect(t.u['r:open']).toBe(1);
+    expect(t.u.new).toBeUndefined();
+    expect(t.peak).toBe(1);
+    await s.stop();
+  });
+
+  it('시간대별: Asia/Seoul 시각으로 접속, 고유 접속자, 최대 동시 접속, 편집을 센다', async () => {
+    expect(hourOf(Date.parse('2026-11-13T03:00:00Z'))).toBe(12);
+    expect(hourOf(Date.parse('2026-11-13T15:30:00Z'))).toBe(0);
+    const s = make();
+    await s.init();
+    const a = {};
+    const b = {};
+    s.wsOpen(a, 'room1', id(1), UA); // 12시
+    s.wsOpen(b, 'room1', id(2), UA);
+    s.edit('room1');
+    clock += 60 * 60_000; // 13시: 연결을 이어 가는 사람도 13시 접속자로 센다
+    s.tickHour();
+    s.wsClose(b, 1000);
+    s.edit('room1');
+    s.edit('room1');
+    const t = s.today();
+    expect(t.c['h:conns:12']).toBe(2);
+    expect(t.u['h:users:12']).toBe(2);
+    expect(t.c['h:peak:12']).toBe(2);
+    expect(t.c['h:edits:12']).toBe(1);
+    expect(t.u['h:users:13']).toBe(2);
+    expect(t.c['h:edits:13']).toBe(2);
+    expect(t.c['h:conns:13']).toBeUndefined();
     await s.stop();
   });
 

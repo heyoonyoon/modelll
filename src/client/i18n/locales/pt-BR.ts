@@ -277,6 +277,8 @@ export const ptBR: Dictionary = {
   'view.snapOn': 'Ativar encaixe de alinhamento',
   'view.snapOff': 'Desativar encaixe de alinhamento',
   'view.minimap': 'Minimapa',
+  'view.hideAttributes': 'Ocultar atributos',
+  'view.attributesFollow': 'Mover atributos juntos',
   'view.minimapOn': 'Mostrar minimapa',
   'view.minimapOff': 'Ocultar minimapa',
 
@@ -614,6 +616,7 @@ export const ptBR: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Sugestões',
+  'feedback.button': 'Opinião',
   'feedback.placeholder': 'Deixe sua opinião',
   'feedback.send': 'Enviar',
   'feedback.sent': 'Enviado',

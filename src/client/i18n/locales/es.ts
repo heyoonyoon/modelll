@@ -277,6 +277,8 @@ export const es: Dictionary = {
   'view.snapOn': 'Activar ajuste de alineación',
   'view.snapOff': 'Desactivar ajuste de alineación',
   'view.minimap': 'Minimapa',
+  'view.hideAttributes': 'Ocultar atributos',
+  'view.attributesFollow': 'Mover atributos juntos',
   'view.minimapOn': 'Mostrar minimapa',
   'view.minimapOff': 'Ocultar minimapa',
 
@@ -614,6 +616,7 @@ export const es: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': 'Sugerencias',
+  'feedback.button': 'Opinión',
   'feedback.placeholder': 'Déjanos tu opinión',
   'feedback.send': 'Enviar',
   'feedback.sent': 'Enviado',

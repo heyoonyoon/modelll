@@ -3,6 +3,7 @@
  */
 import type { Room } from './collab/room';
 import { deleteElements, updateNodes } from './collab/docOps';
+import { attachedAttributes, attrView, visibleGraph } from './state/attrView';
 import { ui } from './state/ui';
 
 export function undo(room: Room): void {
@@ -20,13 +21,18 @@ export function deleteSelection(room: Room): void {
 }
 
 export function selectAll(room: Room): void {
-  ui().setSelection([...room.nodes.getSnapshot().map((n) => n.id), ...room.edges.getSnapshot().map((e) => e.id)]);
+  const { nodes, edges } = visibleGraph(room.nodes.getSnapshot(), room.edges.getSnapshot());
+  ui().setSelection([...nodes.map((n) => n.id), ...edges.map((e) => e.id)]);
 }
 
 /** 선택된 노드를 dx, dy만큼 옮긴다(방향키). */
 export function nudgeSelection(room: Room, dx: number, dy: number): void {
-  const patches = ui()
-    .selection.map((id) => room.nodes.get(id))
+  const selection = ui().selection;
+  const ids = attrView().follow
+    ? [...selection, ...attachedAttributes(selection, room.nodes.getSnapshot(), room.edges.getSnapshot())]
+    : selection;
+  const patches = ids
+    .map((id) => room.nodes.get(id))
     .filter((n): n is NonNullable<typeof n> => Boolean(n))
     .map((n) => ({ id: n.id, patch: { x: n.x + dx, y: n.y + dy } }));
   if (patches.length > 0) updateNodes(room.doc, patches);

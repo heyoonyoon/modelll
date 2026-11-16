@@ -276,6 +276,8 @@ export const zhTW: Dictionary = {
   'view.snapOn': '開啟對齊貼齊',
   'view.snapOff': '關閉對齊貼齊',
   'view.minimap': '小地圖',
+  'view.hideAttributes': '隱藏屬性',
+  'view.attributesFollow': '屬性隨之移動',
   'view.minimapOn': '顯示小地圖',
   'view.minimapOff': '隱藏小地圖',
 
@@ -613,6 +615,7 @@ export const zhTW: Dictionary = {
   // ───────────── 관계 모델과 SQL 보기 끝 ─────────────
   // ───────────── 건의사항 ─────────────
   'feedback.title': '意見回饋',
+  'feedback.button': '回饋',
   'feedback.placeholder': '請留下您的意見',
   'feedback.send': '傳送',
   'feedback.sent': '已傳送',

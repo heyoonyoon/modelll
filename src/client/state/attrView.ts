@@ -3,6 +3,7 @@
  * 엔티티나 관계를 옮길 때 거기 붙은 속성이 함께 따라오게 할 수 있다. 둘 다 이 브라우저에 기억한다.
  */
 import { create } from 'zustand';
+import { specRoles } from '../../shared/rules';
 import type { ErdEdge, ErdNode } from '../../shared/types';
 
 const HIDE_KEY = 'modelll.attrs.hidden';
@@ -65,30 +66,64 @@ export function visibleGraph(nodes: ErdNode[], edges: ErdEdge[], hidden = attrVi
 }
 
 /**
- * 고른 엔티티와 관계에 붙은 속성 id(복합 속성의 하위 속성까지). 이미 고른 것은 빼고 돌려준다.
- * 속성에서 출발하지 않는다. 하위 속성 하나를 옮길 때 형제 속성까지 끌려오지 않게 하기 위해서다.
+ * 고른 도형을 옮길 때 같이 따라오는 노드 id. 이미 고른 것은 빼고 돌려준다.
+ *   엔티티와 관계: 붙은 속성(복합 속성의 하위 속성까지)
+ *   속성: 그 속성의 하위 속성만(소유자 쪽으로 거슬러 올라가지 않으므로 형제 속성은 오지 않는다)
+ *   특수화 원: 서브타입 엔티티와 그 속성, 서브타입 아래에 또 있는 특수화 원과 그 서브타입까지
  */
 export function attachedAttributes(selected: readonly string[], nodes: readonly ErdNode[], edges: readonly ErdEdge[]): string[] {
-  const kind = new Map(nodes.map((n) => [n.id, n.kind]));
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const kind = (id: string) => byId.get(id)?.kind;
   const adj = new Map<string, string[]>();
   for (const e of edges) {
     (adj.get(e.source) ?? adj.set(e.source, []).get(e.source)!).push(e.target);
     (adj.get(e.target) ?? adj.set(e.target, []).get(e.target)!).push(e.source);
   }
+  // 속성마다 소유자(속성이 아닌 노드)에서 몇 단계 떨어져 있는지. 하위 속성은 한 단계 더 멀다
+  const depth = new Map<string, number>();
+  const level: string[] = [];
+  for (const n of nodes) if (n.kind !== 'attribute') depth.set(n.id, 0), level.push(n.id);
+  for (let i = 0; i < level.length; i++) {
+    const id = level[i];
+    for (const next of adj.get(id) ?? []) {
+      if (kind(next) !== 'attribute' || depth.has(next)) continue;
+      depth.set(next, depth.get(id)! + 1);
+      level.push(next);
+    }
+  }
+  const supertypeOf = new Map<string, string | null>();
+  const supertype = (specId: string): string | null => {
+    if (!supertypeOf.has(specId)) supertypeOf.set(specId, specRoles(byId.get(specId)!, byId, edges as ErdEdge[]).supertype?.id ?? null);
+    return supertypeOf.get(specId)!;
+  };
+
   const chosen = new Set(selected);
-  const seen = new Set<string>();
+  const seen = new Set<string>(selected);
   const out: string[] = [];
-  const queue = selected.filter((id) => {
-    const k = kind.get(id);
-    return k !== undefined && k !== 'attribute';
-  });
+  const add = (id: string, queue: string[]) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(id);
+    queue.push(id);
+  };
+  const queue = selected.filter((id) => byId.has(id));
   while (queue.length > 0) {
     const id = queue.shift()!;
+    const k = kind(id);
     for (const next of adj.get(id) ?? []) {
-      if (seen.has(next) || kind.get(next) !== 'attribute') continue;
-      seen.add(next);
-      if (!chosen.has(next)) out.push(next);
-      queue.push(next);
+      const nk = kind(next);
+      if (nk === 'attribute') {
+        // 속성에서는 더 먼 쪽(하위 속성)으로만 간다
+        if (k === 'attribute' && (depth.get(next) ?? 0) <= (depth.get(id) ?? 0)) continue;
+        if (k === 'spec') continue;
+        add(next, queue);
+      } else if (k === 'spec' && nk === 'entity') {
+        // 원에서는 서브타입으로만 간다
+        if (next !== supertype(id)) add(next, queue);
+      } else if (k === 'entity' && nk === 'spec' && !chosen.has(id) && supertype(next) === id) {
+        // 따라온 서브타입이 또 슈퍼타입이면 그 아래 원도 따라온다
+        add(next, queue);
+      }
     }
   }
   return out;

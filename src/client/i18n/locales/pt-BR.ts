@@ -215,6 +215,8 @@ export const ptBR: Dictionary = {
   'inspector.shape.straight': 'Reta',
   'inspector.shape.elbow': 'Em ângulo',
   'inspector.align': 'Alinhar',
+  'inspector.color': 'Cor',
+  'inspector.colorDefault': 'Cor padrão',
   'inspector.align.left': 'Alinhar à esquerda',
   'inspector.align.hcenter': 'Centralizar na horizontal',
   'inspector.align.right': 'Alinhar à direita',

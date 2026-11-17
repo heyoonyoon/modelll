@@ -214,6 +214,8 @@ export const zhCN: Dictionary = {
   'inspector.shape.straight': '直线',
   'inspector.shape.elbow': '折线',
   'inspector.align': '对齐',
+  'inspector.color': '颜色',
+  'inspector.colorDefault': '默认颜色',
   'inspector.align.left': '左对齐',
   'inspector.align.hcenter': '水平居中对齐',
   'inspector.align.right': '右对齐',

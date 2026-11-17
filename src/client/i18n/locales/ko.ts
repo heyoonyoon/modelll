@@ -230,6 +230,8 @@ export const ko = {
   'inspector.shape.straight': '직선',
   'inspector.shape.elbow': '꺾은선',
   'inspector.align': '정렬',
+  'inspector.color': '색',
+  'inspector.colorDefault': '기본 색',
   'inspector.align.left': '왼쪽 맞춤',
   'inspector.align.hcenter': '가로 가운데 맞춤',
   'inspector.align.right': '오른쪽 맞춤',

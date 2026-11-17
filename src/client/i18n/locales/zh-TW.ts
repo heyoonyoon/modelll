@@ -214,6 +214,8 @@ export const zhTW: Dictionary = {
   'inspector.shape.straight': '直線',
   'inspector.shape.elbow': '折線',
   'inspector.align': '對齊',
+  'inspector.color': '顏色',
+  'inspector.colorDefault': '預設顏色',
   'inspector.align.left': '靠左對齊',
   'inspector.align.hcenter': '水平置中對齊',
   'inspector.align.right': '靠右對齊',

@@ -216,6 +216,8 @@ export const de: Dictionary = {
   'inspector.shape.straight': 'Gerade',
   'inspector.shape.elbow': 'Gewinkelt',
   'inspector.align': 'Ausrichten',
+  'inspector.color': 'Farbe',
+  'inspector.colorDefault': 'Standardfarbe',
   'inspector.align.left': 'Linksbündig ausrichten',
   'inspector.align.hcenter': 'Horizontal zentrieren',
   'inspector.align.right': 'Rechtsbündig ausrichten',

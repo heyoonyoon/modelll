@@ -5,7 +5,7 @@
  */
 import { memo } from 'react';
 import type { EdgeGeometry } from '../../shared/geometry';
-import { STYLE } from '../../shared/types';
+import { STYLE, safeColor } from '../../shared/types';
 import type { ErdEdge } from '../../shared/types';
 
 export interface EdgeShapeProps {
@@ -58,7 +58,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related
   const roleSize = labelSize - 2;
   const labelPos = pushLabel(geometry.labelPos, geometry.mid, labelSize);
   const rolePos = pushLabel(geometry.rolePos, geometry.mid, labelSize);
-  const color = selected ? STYLE.accent : related ? RELATED_STROKE : STYLE.stroke;
+  const color = selected ? STYLE.accent : related ? RELATED_STROKE : (safeColor(edge.color) ?? STYLE.stroke);
   // 글자는 강조 중에도 읽기 쉬운 본래 색으로 둔다
   const labelColor = selected ? STYLE.accent : STYLE.stroke;
   const width = related && !selected ? STYLE.strokeWidth + 1 : STYLE.strokeWidth;
@@ -176,7 +176,7 @@ function sameProps(a: EdgeShapeProps, b: EdgeShapeProps): boolean {
     return false;
   }
   if (a.edge !== b.edge) {
-    if (a.edge.id !== b.edge.id || a.edge.label !== b.edge.label || a.edge.role !== b.edge.role) return false;
+    if (a.edge.id !== b.edge.id || a.edge.label !== b.edge.label || a.edge.role !== b.edge.role || a.edge.color !== b.edge.color) return false;
   }
   const g = a.geometry;
   const h = b.geometry;

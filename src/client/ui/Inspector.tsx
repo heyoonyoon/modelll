@@ -16,6 +16,7 @@ import {
   NODE_PRESETS,
   PRESET_ORDER,
   presetOf,
+  safeColor,
   type EdgeShapeKind,
   type ErdEdge,
   type ErdNode,
@@ -552,6 +553,48 @@ function AttributeBatch({ nodes }: { nodes: ErdNode[] }) {
 
 // ───────────────────────── 패널 ─────────────────────────
 
+/** 고를 수 있는 테두리와 선 색. 첫 칸은 기본 색으로 되돌린다 */
+export const COLOR_CHOICES = ['#1d4ed8', '#c2410c', '#15803d', '#7c3aed', '#be123c', '#0e7490', '#a16207'] as const;
+
+function ColorSection({ nodes, edges }: { nodes: ErdNode[]; edges: ErdEdge[] }) {
+  const t = useT();
+  const room = useRoom();
+  const current = commonValue([...nodes.map((n) => safeColor(n.color) ?? ''), ...edges.map((e) => safeColor(e.color) ?? '')]);
+  const apply = (color: string | undefined) => {
+    transact(room.doc, () => {
+      if (nodes.length > 0) updateNodes(room.doc, nodes.map((n) => ({ id: n.id, patch: { color } })));
+      if (edges.length > 0) updateEdges(room.doc, edges.map((e) => ({ id: e.id, patch: { color } })));
+    });
+  };
+  return (
+    <Section title={t('inspector.color')}>
+      <div className="inspector-colors" role="group" aria-label={t('inspector.color')}>
+        <button
+          type="button"
+          className={`inspector-color is-default${current === '' ? ' is-active' : ''}`}
+          aria-label={t('inspector.colorDefault')}
+          title={t('inspector.colorDefault')}
+          aria-pressed={current === ''}
+          data-testid="inspector-color-default"
+          onClick={() => apply(undefined)}
+        />
+        {COLOR_CHOICES.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={`inspector-color${current === c ? ' is-active' : ''}`}
+            style={{ background: c }}
+            aria-label={c}
+            aria-pressed={current === c}
+            data-testid={`inspector-color-${c.slice(1)}`}
+            onClick={() => apply(c)}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export function Inspector() {
   const t = useT();
   const room = useRoom();
@@ -585,7 +628,12 @@ export function Inspector() {
   if (count === 1 && selNodes.length === 1) {
     const node = selNodes[0];
     title = t('inspector.title.node');
-    body = <NodeSection key={node.id} node={node} />;
+    body = (
+      <div key={node.id} className="inspector-keyed">
+        <NodeSection node={node} />
+        {node.kind !== 'note' && <ColorSection nodes={selNodes} edges={selEdges} />}
+      </div>
+    );
   } else if (count === 1) {
     const edge = selEdges[0];
     const name = `${nodeLabel(nodeMap.get(edge.source))} — ${nodeLabel(nodeMap.get(edge.target))}`;
@@ -597,6 +645,7 @@ export function Inspector() {
         </p>
         <EdgeFields edges={selEdges} nodeMap={nodeMap} />
         <EdgeShapeSection edges={selEdges} nodeMap={nodeMap} />
+        <ColorSection nodes={selNodes} edges={selEdges} />
       </div>
     );
   } else {
@@ -613,6 +662,7 @@ export function Inspector() {
         {allAttributes && <AttributeBatch nodes={selNodes} />}
         {sameNature && <EdgeFields edges={selEdges} nodeMap={nodeMap} />}
         {selEdges.length > 0 && <EdgeShapeSection edges={selEdges} nodeMap={nodeMap} />}
+        <ColorSection nodes={selNodes.filter((n) => n.kind !== 'note')} edges={selEdges} />
       </div>
     );
   }

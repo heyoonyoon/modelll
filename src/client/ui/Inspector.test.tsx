@@ -121,9 +121,9 @@ describe('노드 하나', () => {
     expect(screen.queryByTestId('inspector-fit')).toBeNull();
     fireEvent.click(screen.getByTestId('inspector-preset-spec-o'));
     expect(yNode('s').get('specType')).toBe('o');
-    // 묶음 제목은 종류와 글자뿐이다(빈 옵션, 크기 제목이 없다)
+    // 묶음 제목은 종류, 글자, 색뿐이다(빈 옵션, 크기 제목이 없다)
     act(() => useUi.getState().setSelection(['a']));
-    expect(Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent)).toEqual(['종류', '글자']);
+    expect(Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent)).toEqual(['종류', '글자', '색']);
     view.unmount();
   });
 
@@ -362,9 +362,9 @@ describe('선 모양(붙는 위치는 캔버스의 끝점 손잡이로 고른다
   const nodes = () => [n('학생', 'entity'), n('수강', 'relationship'), n('나이', 'attribute'), n('과목', 'entity')];
   const sectionTitles = () => Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent);
 
-  it('구역 순서: 카디널리티, 선 종류, 역할 이름, 선 모양(붙는 위치 구역은 없다)', () => {
+  it('구역 순서: 카디널리티, 선 종류, 역할 이름, 선 모양, 색(붙는 위치 구역은 없다)', () => {
     setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
-    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '역할 이름', '선 모양']);
+    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '역할 이름', '선 모양', '색']);
     expect(screen.queryByTestId('inspector-source-side-auto')).toBeNull();
     expect(screen.queryByTestId('inspector-anchor-reset')).toBeNull();
     expect(screen.getByTestId('inspector').textContent).not.toContain('마름모는');

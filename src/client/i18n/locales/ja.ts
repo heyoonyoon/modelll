@@ -214,6 +214,8 @@ export const ja: Dictionary = {
   'inspector.shape.straight': '直線',
   'inspector.shape.elbow': 'カギ線',
   'inspector.align': '整列',
+  'inspector.color': '色',
+  'inspector.colorDefault': '標準の色',
   'inspector.align.left': '左揃え',
   'inspector.align.hcenter': '左右中央揃え',
   'inspector.align.right': '右揃え',

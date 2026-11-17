@@ -216,6 +216,8 @@ export const fr: Dictionary = {
   'inspector.shape.straight': 'Droite',
   'inspector.shape.elbow': 'Coudée',
   'inspector.align': 'Aligner',
+  'inspector.color': 'Couleur',
+  'inspector.colorDefault': 'Couleur par défaut',
   'inspector.align.left': 'Aligner à gauche',
   'inspector.align.hcenter': 'Centrer horizontalement',
   'inspector.align.right': 'Aligner à droite',

@@ -4,7 +4,7 @@
  * CSS 클래스에 기대지 않고 모든 모양을 SVG 속성으로 직접 준다.
  */
 import { memo, type ReactNode, type SVGAttributes } from 'react';
-import { STYLE, type ErdNode } from '../../shared/types';
+import { STYLE, type ErdNode, safeColor, tintColor } from '../../shared/types';
 import { innerDiamondScale, measureText } from '../text/measure';
 
 export interface NodeShapeProps {
@@ -229,7 +229,9 @@ function NodeShapeImpl({ node, selected = false, hovered = false, editing = fals
     );
   }
 
-  const stroke = selected ? STYLE.accent : STYLE.stroke;
+  const color = safeColor(node.color);
+  const stroke = selected ? STYLE.accent : (color ?? STYLE.stroke);
+  const fill = color ? tintColor(color) : STYLE.fill;
   const strokeWidth = selected ? STYLE.strokeWidth + 0.5 : STYLE.strokeWidth;
   const dash = node.kind === 'attribute' && node.derived ? DERIVED_DASH : undefined;
 
@@ -247,7 +249,7 @@ function NodeShapeImpl({ node, selected = false, hovered = false, editing = fals
             pointerEvents: 'none',
           })
         : null}
-      {outline(node, { fill: STYLE.fill, stroke, strokeWidth, strokeDasharray: dash })}
+      {outline(node, { fill, stroke, strokeWidth, strokeDasharray: dash })}
       {isDouble(node) ? outline(node, { fill: 'none', stroke, strokeWidth, strokeDasharray: dash, pointerEvents: 'none' }, true) : null}
       {node.kind === 'spec' ? specLetter(node) : !editing && label(node)}
     </g>

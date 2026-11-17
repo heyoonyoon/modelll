@@ -214,6 +214,8 @@ export const vi: Dictionary = {
   'inspector.shape.straight': 'Thẳng',
   'inspector.shape.elbow': 'Gấp khúc',
   'inspector.align': 'Căn chỉnh',
+  'inspector.color': 'Màu',
+  'inspector.colorDefault': 'Màu mặc định',
   'inspector.align.left': 'Căn trái',
   'inspector.align.hcenter': 'Căn giữa theo chiều ngang',
   'inspector.align.right': 'Căn phải',

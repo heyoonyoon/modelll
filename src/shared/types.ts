@@ -41,6 +41,19 @@ export interface ErdNode {
   keyType?: KeyType;
   /** spec 전용 */
   specType?: SpecType;
+  /** 테두리 색(#rrggbb). 없으면 기본 색 */
+  color?: string;
+}
+
+/** 저장된 색 값이 #rrggbb 꼴일 때만 돌려준다(그 밖의 값은 그리지 않는다) */
+export function safeColor(v: unknown): string | undefined {
+  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : undefined;
+}
+
+/** 색을 흰색과 섞은 연한 바탕색. 도형 안의 검은 글자가 읽히도록 색은 조금만 넣는다 */
+export function tintColor(hex: string, amount = 0.16): string {
+  const mix = (i: number) => Math.round(255 - (255 - parseInt(hex.slice(i, i + 2), 16)) * amount);
+  return '#' + [1, 3, 5].map((i) => mix(i).toString(16).padStart(2, '0')).join('');
 }
 
 // ───────────────────────── 연결선(엣지) ─────────────────────────
@@ -90,6 +103,8 @@ export interface ErdEdge {
    * elbow는 사용자가 직접 골랐을 때만 쓴다.
    */
   shape?: EdgeShapeKind;
+  /** 선 색(#rrggbb). 없으면 기본 색 */
+  color?: string;
 }
 
 export const CARDINALITY_OPTIONS = ['', '1', 'M', 'N'] as const;

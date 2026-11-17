@@ -10,7 +10,7 @@
  */
 import * as Y from 'yjs';
 import type { DiagramChange } from './model/types';
-import { STYLE, isAnchor, type ErdEdge, type ErdNode } from './types';
+import { STYLE, isAnchor, safeColor, type ErdEdge, type ErdNode } from './types';
 
 export type YElementMap = Y.Map<Y.Map<unknown>>;
 
@@ -52,6 +52,8 @@ export function readEdge(m: Y.Map<unknown>): ErdEdge {
   if (isAnchor(o.sourceSide)) edge.sourceSide = o.sourceSide;
   if (isAnchor(o.targetSide)) edge.targetSide = o.targetSide;
   if (o.shape === 'straight' || o.shape === 'elbow') edge.shape = o.shape;
+  const color = safeColor(o.color);
+  if (color) edge.color = color;
   return edge;
 }
 

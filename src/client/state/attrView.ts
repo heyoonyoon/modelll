@@ -70,8 +70,16 @@ export function visibleGraph(nodes: ErdNode[], edges: ErdEdge[], hidden = attrVi
  *   엔티티와 관계: 붙은 속성(복합 속성의 하위 속성까지)
  *   속성: 그 속성의 하위 속성만(소유자 쪽으로 거슬러 올라가지 않으므로 형제 속성은 오지 않는다)
  *   특수화 원: 서브타입 엔티티와 그 속성, 서브타입 아래에 또 있는 특수화 원과 그 서브타입까지
+ *   슈퍼타입 엔티티: 속성과 함께 그 아래 특수화 트리 전체(원, 서브타입, 그 속성). subtypes가 false면 속성만
+ * 관계 선은 따라가지 않는다(관계 마름모와 상대 엔티티는 제자리에 있다).
  */
-export function attachedAttributes(selected: readonly string[], nodes: readonly ErdNode[], edges: readonly ErdEdge[]): string[] {
+export function attachedAttributes(
+  selected: readonly string[],
+  nodes: readonly ErdNode[],
+  edges: readonly ErdEdge[],
+  opts: { subtypes?: boolean } = {},
+): string[] {
+  const withSubtypes = opts.subtypes ?? true;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const kind = (id: string) => byId.get(id)?.kind;
   const adj = new Map<string, string[]>();
@@ -120,8 +128,8 @@ export function attachedAttributes(selected: readonly string[], nodes: readonly 
       } else if (k === 'spec' && nk === 'entity') {
         // 원에서는 서브타입으로만 간다
         if (next !== supertype(id)) add(next, queue);
-      } else if (k === 'entity' && nk === 'spec' && !chosen.has(id) && supertype(next) === id) {
-        // 따라온 서브타입이 또 슈퍼타입이면 그 아래 원도 따라온다
+      } else if (k === 'entity' && nk === 'spec' && supertype(next) === id && (withSubtypes || !chosen.has(id))) {
+        // 슈퍼타입이면 그 아래 원도 따라온다(따라온 서브타입이 또 슈퍼타입인 경우도 같다)
         add(next, queue);
       }
     }

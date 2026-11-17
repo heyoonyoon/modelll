@@ -45,8 +45,14 @@ describe('특수화 원 따라 옮기기', () => {
   it('원을 고르면 서브타입과 그 속성, 그 아래 원과 서브타입까지 따라오고 슈퍼타입과 관계는 오지 않는다', () => {
     expect(attachedAttributes(['S'], ns, es).sort()).toEqual(['Em', 'G', 'S2', 'SN', 'St']);
   });
-  it('슈퍼타입 엔티티를 고르면 속성만 따라오고 원은 오지 않는다', () => {
-    expect(attachedAttributes(['P'], ns, es)).toEqual(['PN']);
+  it('슈퍼타입 엔티티를 고르면 속성과 그 아래 특수화 트리 전체가 따라오고 관계 쪽은 오지 않는다', () => {
+    expect(attachedAttributes(['P'], ns, es).sort()).toEqual(['Em', 'G', 'PN', 'S', 'S2', 'SN', 'St']);
+  });
+  it('중간 서브타입을 고르면 그 아래만 따라온다', () => {
+    expect(attachedAttributes(['St'], ns, es).sort()).toEqual(['G', 'S2', 'SN']);
+  });
+  it('서브타입을 빼라고 하면 속성만 따라온다', () => {
+    expect(attachedAttributes(['P'], ns, es, { subtypes: false })).toEqual(['PN']);
   });
 });
 

@@ -55,7 +55,8 @@ export function startMove(ctx: GestureCtx, down: PointerSnap, nodeId: string): G
     const all = room.nodes.getSnapshot();
     const view = attrView();
     if (view.follow) {
-      for (const id of attachedAttributes(ui().selection, all, room.edges.getSnapshot())) {
+      // Alt를 누른 채 끌기 시작하면 서브타입은 두고 그 도형(과 속성)만 옮긴다
+      for (const id of attachedAttributes(ui().selection, all, room.edges.getSnapshot(), { subtypes: !down.altKey })) {
         const n = room.nodes.get(id);
         if (n) origins.set(id, nodeRect(n));
       }

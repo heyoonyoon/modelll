@@ -5,6 +5,7 @@
 import * as Y from 'yjs';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
+import { equalityDeep } from 'lib0/function';
 import * as syncProtocol from 'y-protocols/sync';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import type { WebSocket } from 'ws';
@@ -60,6 +61,8 @@ interface Conn {
   lastEdit: number;
   /** 이 연결이 마지막으로 커서나 선택을 바꾼 시각(ms). 바꾼 적이 없으면 0. 관리자 화면용 */
   lastMove: number;
+  /** 이 연결이 올린 clientID별 마지막 상태. 내용이 실제로 달라졌는지 가리는 데 쓴다 */
+  seen: Map<number, unknown>;
 }
 
 /** 관리자 화면의 실시간 목록에 보이는 연결 정보(메모리에서만 읽고 저장하지 않는다) */
@@ -196,7 +199,7 @@ export class SyncHub {
       room.unloadTimer = null;
     }
 
-    const conn: Conn = { ws, alive: true, awarenessIds: new Set(), queue: [], lastEdit: 0, lastMove: 0 };
+    const conn: Conn = { ws, alive: true, awarenessIds: new Set(), queue: [], lastEdit: 0, lastMove: 0, seen: new Map() };
     room.conns.set(ws, conn);
     this.log(`join room=${room.id} clients=${room.conns.size}`);
 
@@ -341,10 +344,19 @@ export class SyncHub {
       }
     });
 
-    // 내용이 바뀐 awareness만(커서, 선택, 편집 중인 도형) 움직임으로 친다. 15초마다 오는 생존 신호는 'change'가 아니다
-    room.awareness.on('change', ({ updated }: { updated: number[] }, origin: unknown) => {
+    // 내용이 바뀐 awareness만(커서, 선택, 편집 중인 도형) 움직임으로 친다.
+    // 'change'의 updated만 믿으면 안 된다. 뒤에 깔린 탭은 생존 신호가 1분에 한 번으로 늦어져 서버가 30초 만에
+    // 상태를 지우는데, 그 뒤에 온 같은 내용의 신호도 updated로 온다. 그래서 이 연결이 전에 올린 내용과 직접 견준다.
+    room.awareness.on('change', ({ added, updated }: { added: number[]; updated: number[] }, origin: unknown) => {
       const sender = this.connOf(room, origin);
-      if (sender && updated.length > 0) sender.lastMove = Date.now();
+      if (!sender) return;
+      const states = room.awareness.getStates();
+      for (const id of added.concat(updated)) {
+        const state = states.get(id);
+        const prev = sender.seen.get(id);
+        if (prev !== undefined && !equalityDeep(prev, state)) sender.lastMove = Date.now();
+        sender.seen.set(id, state);
+      }
     });
 
     room.awareness.on(
